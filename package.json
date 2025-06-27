@@ -10,6 +10,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.50.1",
     "dotenv": "^16.6.0",
-    "node-telegram-bot-api": "^0.63.0"
+    "node-telegram-bot-api": "^0.63.0",
+    "node-fetch": "^3.3.2",
+    "cheerio": "^1.0.0-rc.12"
   }
 }

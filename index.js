@@ -1,6 +1,8 @@
 import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
+import cheerio from "cheerio";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -99,18 +101,32 @@ bot.on("message", async (msg) => {
 
   if (text && text.startsWith("http")) {
     try {
+      // Obtener el título de la página
+      let title = null;
+      try {
+        const res = await fetch(text);
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        title = $("title").text().trim();
+      } catch (e) {
+        console.error("No se pudo obtener el título de la URL:", e);
+      }
       const { error } = await supabase.from("articles").insert([
         {
           url: text,
           user_id: data.user_id,
           dateAdded: new Date().toISOString(),
+          title: title || null,
         },
       ]);
       if (error) {
         console.error("Error al guardar en Supabase:", error);
         bot.sendMessage(chatId, "❌ Error al guardar el artículo.");
       } else {
-        bot.sendMessage(chatId, "✅ ¡Artículo guardado!");
+        bot.sendMessage(
+          chatId,
+          `✅ ¡Artículo guardado!${title ? `\nTítulo: ${title}` : ""}`
+        );
       }
     } catch (e) {
       console.error("Error inesperado:", e);
