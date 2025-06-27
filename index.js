@@ -2,7 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
