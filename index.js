@@ -129,6 +129,12 @@ bot.on("message", async (msg) => {
       } catch (e) {
         console.error("No se pudieron obtener los metadatos de la URL:", e);
       }
+      // Traducción simple de idioma
+      let languageName = language;
+      if (language) {
+        if (language.startsWith("en")) languageName = "Inglés";
+        else if (language.startsWith("es")) languageName = "Castellano";
+      }
       const { error } = await supabase.from("articles").insert([
         {
           url: text,
@@ -147,7 +153,7 @@ bot.on("message", async (msg) => {
         bot.sendMessage(
           chatId,
           `✅ ¡Artículo guardado!${title ? `\nTítulo: ${title}` : ""}${
-            language ? `\nIdioma: ${language}` : ""
+            languageName ? `\nIdioma: ${languageName}` : ""
           }${authors.length ? `\nAutor(es): ${authors.join(", ")}` : ""}${
             topics.length ? `\nTemas: ${topics.join(", ")}` : ""
           }`
