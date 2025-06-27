@@ -47,6 +47,19 @@ bot.onText(/^\/start(?:\s+)?([a-zA-Z0-9-]+)?/, async (msg, match) => {
   });
 
   try {
+    // Verificar si el usuario ya está vinculado
+    const { data: existingUser, error: selectError } = await supabase
+      .from("telegram_users")
+      .select("id")
+      .eq("telegram_chat_id", chatId)
+      .single();
+    if (existingUser && !selectError) {
+      bot.sendMessage(
+        chatId,
+        "✅ Tu cuenta de Telegram ya está vinculada. ¡Ya puedes empezar a compartir artículos para guardarlos!"
+      );
+      return;
+    }
     const { error } = await supabase.from("telegram_users").insert([
       {
         user_id: userId,
