@@ -101,15 +101,33 @@ bot.on("message", async (msg) => {
 
   if (text && text.startsWith("http")) {
     try {
-      // Obtener el título de la página
+      // Obtener metadatos de la página
       let title = null;
+      let language = null;
+      let authors = [];
+      let topics = [];
       try {
         const res = await fetch(text);
         const html = await res.text();
         const $ = cheerio.load(html);
         title = $("title").text().trim();
+        language =
+          $("html").attr("lang") ||
+          $('meta[http-equiv="content-language"]').attr("content") ||
+          null;
+        const authorMeta = $('meta[name="author"]').attr("content");
+        if (authorMeta) {
+          authors = [authorMeta];
+        }
+        const keywordsMeta = $('meta[name="keywords"]').attr("content");
+        if (keywordsMeta) {
+          topics = keywordsMeta
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean);
+        }
       } catch (e) {
-        console.error("No se pudo obtener el título de la URL:", e);
+        console.error("No se pudieron obtener los metadatos de la URL:", e);
       }
       const { error } = await supabase.from("articles").insert([
         {
@@ -117,6 +135,9 @@ bot.on("message", async (msg) => {
           user_id: data.user_id,
           dateAdded: new Date().toISOString(),
           title: title || null,
+          language: language || null,
+          authors: authors.length ? authors : null,
+          topics: topics.length ? topics : null,
         },
       ]);
       if (error) {
@@ -125,7 +146,11 @@ bot.on("message", async (msg) => {
       } else {
         bot.sendMessage(
           chatId,
-          `✅ ¡Artículo guardado!${title ? `\nTítulo: ${title}` : ""}`
+          `✅ ¡Artículo guardado!${title ? `\nTítulo: ${title}` : ""}${
+            language ? `\nIdioma: ${language}` : ""
+          }${authors.length ? `\nAutor(es): ${authors.join(", ")}` : ""}${
+            topics.length ? `\nTemas: ${topics.join(", ")}` : ""
+          }`
         );
       }
     } catch (e) {
