@@ -142,6 +142,17 @@ bot.on("message", async (msg) => {
       } catch (e) {
         console.error("No se pudieron obtener los metadatos de la URL:", e);
       }
+      // Verificar si el artículo ya existe por URL o título para este usuario
+      const { data: existingArticle, error: searchError } = await supabase
+        .from("articles")
+        .select("id")
+        .or(`url.eq.${text},title.eq.${title}`)
+        .eq("user_id", data.user_id)
+        .maybeSingle();
+      if (existingArticle && !searchError) {
+        bot.sendMessage(chatId, "⚠️ Ya tienes este artículo guardado.");
+        return;
+      }
       // Traducción simple de idioma
       let languageName = language;
       if (language) {
