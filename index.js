@@ -139,64 +139,75 @@ bot.on("message", async (msg) => {
         if (firecrawl) {
           // Usar Firecrawl para extracción avanzada
           console.log("🔍 Extrayendo metadatos con Firecrawl...");
-          const result = await firecrawl.scrapeUrl({
-            url: text,
-            pageOptions: {
-              onlyMainContent: false,
-              includeHtml: false,
-              includeMarkdown: false,
-              includeScreenshot: false,
-              includeAllMetadata: true,
-            },
-          });
+          console.log("🔗 URL a procesar:", text);
 
-          if (result.success && result.data) {
-            console.log(
-              "🔍 Respuesta completa de Firecrawl:",
-              JSON.stringify(result, null, 2)
-            );
-
-            const metadata = result.data.metadata || {};
-            title = metadata.title || result.data.title || null;
-            description = metadata.description || null;
-            language = metadata.language || null;
-
-            // Extraer autores de diferentes fuentes
-            if (metadata.author) {
-              authors = Array.isArray(metadata.author)
-                ? metadata.author
-                : [metadata.author];
-            } else if (metadata.authors) {
-              authors = Array.isArray(metadata.authors)
-                ? metadata.authors
-                : [metadata.authors];
-            }
-
-            // Extraer temas/keywords
-            if (metadata.keywords) {
-              topics = Array.isArray(metadata.keywords)
-                ? metadata.keywords
-                : metadata.keywords
-                    .split(",")
-                    .map((t) => t.trim())
-                    .filter(Boolean);
-            } else if (metadata.tags) {
-              topics = Array.isArray(metadata.tags)
-                ? metadata.tags
-                : [metadata.tags];
-            }
-
-            console.log("✅ Metadatos extraídos con Firecrawl:", {
-              title,
-              description,
-              language,
-              authors,
-              topics,
+          try {
+            const result = await firecrawl.scrapeUrl({
+              url: text,
+              pageOptions: {
+                onlyMainContent: false,
+                includeHtml: false,
+                includeMarkdown: false,
+                includeScreenshot: false,
+                includeAllMetadata: true,
+              },
             });
-          } else {
-            console.log("❌ Firecrawl no devolvió datos válidos:", result);
+
+            if (result.success && result.data) {
+              console.log(
+                "🔍 Respuesta completa de Firecrawl:",
+                JSON.stringify(result, null, 2)
+              );
+
+              const metadata = result.data.metadata || {};
+              title = metadata.title || result.data.title || null;
+              description = metadata.description || null;
+              language = metadata.language || null;
+
+              // Extraer autores de diferentes fuentes
+              if (metadata.author) {
+                authors = Array.isArray(metadata.author)
+                  ? metadata.author
+                  : [metadata.author];
+              } else if (metadata.authors) {
+                authors = Array.isArray(metadata.authors)
+                  ? metadata.authors
+                  : [metadata.authors];
+              }
+
+              // Extraer temas/keywords
+              if (metadata.keywords) {
+                topics = Array.isArray(metadata.keywords)
+                  ? metadata.keywords
+                  : metadata.keywords
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter(Boolean);
+              } else if (metadata.tags) {
+                topics = Array.isArray(metadata.tags)
+                  ? metadata.tags
+                  : [metadata.tags];
+              }
+
+              console.log("✅ Metadatos extraídos con Firecrawl:", {
+                title,
+                description,
+                language,
+                authors,
+                topics,
+              });
+            } else {
+              console.log("❌ Firecrawl no devolvió datos válidos:", result);
+              throw new Error("Firecrawl no devolvió datos válidos");
+            }
+          } catch (firecrawlError) {
+            console.error("❌ Error de Firecrawl:", firecrawlError.message);
+            console.log("🔄 Intentando extracción básica como fallback...");
           }
-        } else {
+        }
+
+        // Si Firecrawl falló o no está disponible, usar extracción básica
+        if (!firecrawl || !title) {
           // Fallback a extracción básica con fetch
           console.log("🔍 Usando extracción básica...");
           try {
