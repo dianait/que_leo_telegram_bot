@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/h"
+
+node scripts/update-readme.js
+
+git add README.md 

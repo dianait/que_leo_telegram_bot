@@ -1,7 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
-import { registerTelegramHandlers } from "./src/telegram-handlers.js";
+import { registerTelegramHandlers } from "./src/telegram/handlers.js";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;

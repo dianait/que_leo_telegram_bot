@@ -1,7 +1,7 @@
 import {
   extractMetadataBasic,
   translateLanguage,
-} from "../src/metadata-extractor.js";
+} from "../../src/extractors/metadata-extractor.js";
 
 describe("Metadata Extractor", () => {
   describe("extractMetadataBasic", () => {

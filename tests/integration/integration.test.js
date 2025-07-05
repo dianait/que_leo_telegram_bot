@@ -1,13 +1,13 @@
 import {
   extractMetadataBasic,
   translateLanguage,
-} from "../src/metadata-extractor.js";
+} from "../../src/extractors/metadata-extractor.js";
 import {
   isValidUrl,
   parseStartCommand,
   isLinkMessage,
   isValidUserId,
-} from "../src/validators.js";
+} from "../../src/utils/validators.js";
 
 describe("Integration Tests", () => {
   describe("Flujo completo de procesamiento de artículo", () => {

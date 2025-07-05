@@ -1,4 +1,4 @@
-import { isValidUrl as baseIsValidUrl } from "./validators.js";
+import { isValidUrl as baseIsValidUrl } from "../utils/validators.js";
 import {
   extractMetadataBasic,
   translateLanguage,

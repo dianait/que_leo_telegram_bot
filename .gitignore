@@ -10,4 +10,5 @@ build/
 .env.*
 .idea/
 .vscode/
-*.log 
+*.log
+scripts/ 

@@ -2,7 +2,7 @@ import {
   fetchAndExtractMetadata,
   isValidUrl,
   buildConfirmationMessage,
-} from "./article-extractor.js";
+} from "../extractors/article-extractor.js";
 import {
   findUserByChatId,
   insertUser,
@@ -10,13 +10,14 @@ import {
   findArticleByUrlOrTitle,
   insertArticle,
   prepareArticleData,
-} from "./db-service.js";
+} from "../db/service.js";
 import {
   handleError,
   handleDatabaseError,
   handleNetworkError,
   handleValidationError,
-} from "./error-handler.js";
+} from "../utils/error-handler.js";
+import { checkRateLimit } from "./rate-limiter.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -101,6 +102,17 @@ export function registerTelegramHandlers(bot, supabase) {
       }
 
       if (text && text.startsWith("http")) {
+        // Rate limiting: comprobar si el usuario puede guardar otro artículo
+        const rate = checkRateLimit(user.user_id);
+        if (!rate.allowed) {
+          const seconds = Math.ceil(rate.retryAfter / 1000);
+          bot.sendMessage(
+            chatId,
+            `⏳ Has alcanzado el límite de artículos. Espera ${seconds} segundos antes de enviar otro enlace.`
+          );
+          return;
+        }
+
         // Validar URL antes de procesarla
         if (!isValidUrl(text)) {
           const validationError = new Error("URL inválida");

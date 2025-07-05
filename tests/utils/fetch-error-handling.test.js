@@ -1,6 +1,6 @@
 import jest from "jest-mock";
-import { extractMetadataBasic } from "../src/metadata-extractor.js";
-import { isValidUrl } from "../src/validators.js";
+import { extractMetadataBasic } from "../../src/extractors/metadata-extractor.js";
+import { isValidUrl } from "../../src/utils/validators.js";
 
 // Mock de fetch para simular diferentes escenarios
 global.fetch = jest.fn();

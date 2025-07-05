@@ -3,7 +3,7 @@ import {
   parseStartCommand,
   isLinkMessage,
   isValidUserId,
-} from "../src/validators.js";
+} from "../../src/utils/validators.js";
 
 describe("Validators", () => {
   describe("isValidUrl", () => {

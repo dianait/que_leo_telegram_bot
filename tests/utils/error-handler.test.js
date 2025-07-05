@@ -7,7 +7,7 @@ import {
   handleTelegramError,
   handleError,
   logError,
-} from "../src/error-handler.js";
+} from "../../src/utils/error-handler.js";
 
 // Mock del bot de Telegram
 const mockBot = {
