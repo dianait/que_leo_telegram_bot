@@ -151,6 +151,11 @@ bot.on("message", async (msg) => {
           });
 
           if (result.success && result.data) {
+            console.log(
+              "🔍 Respuesta completa de Firecrawl:",
+              JSON.stringify(result, null, 2)
+            );
+
             const metadata = result.data.metadata || {};
             title = metadata.title || result.data.title || null;
             description = metadata.description || null;
@@ -183,42 +188,56 @@ bot.on("message", async (msg) => {
 
             console.log("✅ Metadatos extraídos con Firecrawl:", {
               title,
+              description,
               language,
               authors,
               topics,
             });
+          } else {
+            console.log("❌ Firecrawl no devolvió datos válidos:", result);
           }
         } else {
           // Fallback a extracción básica con fetch
           console.log("🔍 Usando extracción básica...");
-          const res = await fetch(text);
-          const html = await res.text();
+          try {
+            const res = await fetch(text);
+            const html = await res.text();
 
-          // Extracción básica de título
-          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-          title = titleMatch ? titleMatch[1].trim() : null;
+            // Extracción básica de título
+            const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+            title = titleMatch ? titleMatch[1].trim() : null;
 
-          // Extracción básica de idioma
-          const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
-          language = langMatch ? langMatch[1] : null;
+            // Extracción básica de idioma
+            const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
+            language = langMatch ? langMatch[1] : null;
 
-          // Extracción básica de autor
-          const authorMatch = html.match(
-            /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
-          );
-          if (authorMatch) {
-            authors = [authorMatch[1]];
-          }
+            // Extracción básica de autor
+            const authorMatch = html.match(
+              /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
+            );
+            if (authorMatch) {
+              authors = [authorMatch[1]];
+            }
 
-          // Extracción básica de keywords
-          const keywordsMatch = html.match(
-            /<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i
-          );
-          if (keywordsMatch) {
-            topics = keywordsMatch[1]
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean);
+            // Extracción básica de keywords
+            const keywordsMatch = html.match(
+              /<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i
+            );
+            if (keywordsMatch) {
+              topics = keywordsMatch[1]
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean);
+            }
+
+            console.log("✅ Metadatos extraídos con método básico:", {
+              title,
+              language,
+              authors,
+              topics,
+            });
+          } catch (fetchError) {
+            console.error("❌ Error en extracción básica:", fetchError);
           }
         }
       } catch (e) {
