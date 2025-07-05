@@ -3,6 +3,14 @@ import {
   isValidUrl,
   buildConfirmationMessage,
 } from "./article-extractor.js";
+import {
+  findUserByChatId,
+  insertUser,
+  isUserAlreadyLinked,
+  findArticleByUrlOrTitle,
+  insertArticle,
+  prepareArticleData,
+} from "./db-service.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -34,28 +42,25 @@ export function registerTelegramHandlers(bot, supabase) {
 
     try {
       // Verificar si el usuario ya está vinculado
-      const { data: existingUser, error: selectError } = await supabase
-        .from("telegram_users")
-        .select("id")
-        .eq("telegram_chat_id", chatId)
-        .single();
-      if (existingUser && !selectError) {
+      const isAlreadyLinked = await isUserAlreadyLinked(supabase, chatId);
+      if (isAlreadyLinked) {
         bot.sendMessage(
           chatId,
           "✅ Tu cuenta de Telegram ya está vinculada. ¡Ya puedes empezar a compartir artículos para guardarlos!"
         );
         return;
       }
-      const { error } = await supabase.from("telegram_users").insert([
-        {
-          user_id: userId,
-          telegram_chat_id: chatId,
-          telegram_username: username,
-        },
-      ]);
 
-      if (error) {
-        console.error("Error al vincular usuario:", error);
+      // Insertar nuevo usuario
+      const userData = {
+        user_id: userId,
+        telegram_chat_id: chatId,
+        telegram_username: username,
+      };
+
+      const result = await insertUser(supabase, userData);
+      if (!result.success) {
+        console.error("Error al vincular usuario:", result.error);
         bot.sendMessage(
           chatId,
           "❌ Error al vincular tu cuenta. Intenta de nuevo."
@@ -84,13 +89,8 @@ export function registerTelegramHandlers(bot, supabase) {
     if (text && text.startsWith("/start")) return;
 
     // Busca el user_id vinculado a este chat
-    const { data, error } = await supabase
-      .from("telegram_users")
-      .select("user_id")
-      .eq("telegram_chat_id", chatId)
-      .single();
-
-    if (!data || error) {
+    const user = await findUserByChatId(supabase, chatId);
+    if (!user) {
       bot.sendMessage(
         chatId,
         "❌ Debes vincular tu cuenta primero usando el botón de la app web."
@@ -114,31 +114,32 @@ export function registerTelegramHandlers(bot, supabase) {
           await fetchAndExtractMetadata(text);
 
         // Verificar si el artículo ya existe por URL o título para este usuario
-        const { data: existingArticle, error: searchError } = await supabase
-          .from("articles")
-          .select("id")
-          .or(`url.eq.${text},title.eq.${title}`)
-          .eq("user_id", data.user_id)
-          .maybeSingle();
-        if (existingArticle && !searchError) {
+        const existingArticle = await findArticleByUrlOrTitle(
+          supabase,
+          text,
+          title,
+          user.user_id
+        );
+        if (existingArticle) {
           bot.sendMessage(chatId, "⚠️ Ya tienes este artículo guardado.");
           return;
         }
 
-        const { error } = await supabase.from("articles").insert([
-          {
-            url: text,
-            user_id: data.user_id,
-            dateAdded: new Date().toISOString(),
-            title: title || null,
-            language: language || null,
-            authors: authors && authors.length ? authors : null,
-            topics: topics && topics.length ? topics : null,
-            description: description || null,
-          },
-        ]);
-        if (error) {
-          console.error("Error al guardar en Supabase:", error);
+        // Preparar datos del artículo
+        const articleData = prepareArticleData({
+          url: text,
+          userId: user.user_id,
+          title,
+          language,
+          authors,
+          topics,
+          description,
+        });
+
+        // Insertar artículo
+        const result = await insertArticle(supabase, articleData);
+        if (!result.success) {
+          console.error("Error al guardar en Supabase:", result.error);
           bot.sendMessage(chatId, "❌ Error al guardar el artículo.");
         } else {
           // Construir mensaje de confirmación usando función separada
