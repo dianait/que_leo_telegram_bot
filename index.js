@@ -17,14 +17,9 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// Inicializar Firecrawl si hay API key disponible
+// Desactivar Firecrawl temporalmente - usar solo extracción básica
 let firecrawl = null;
-if (FIRECRAWL_API_KEY) {
-  firecrawl = new FirecrawlApp({ apiKey: FIRECRAWL_API_KEY });
-  console.log("✅ Firecrawl inicializado con API key");
-} else {
-  console.log("⚠️ Firecrawl no disponible - usando extracción básica");
-}
+console.log("🔧 Firecrawl desactivado - usando extracción básica");
 
 // Vinculación de usuario con /start <user_id>
 bot.onText(/^\/start(?:\s+)?([a-zA-Z0-9-]+)?/, async (msg, match) => {
