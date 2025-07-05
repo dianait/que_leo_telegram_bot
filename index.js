@@ -1,20 +1,13 @@
 import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
-import fetch from "node-fetch";
-import * as cheerio from "cheerio";
+import FirecrawlApp from "firecrawl";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-
-// Log de depuración para verificar las variables de entorno
-console.log("SUPABASE_URL:", SUPABASE_URL);
-console.log(
-  "SUPABASE_ANON_KEY:",
-  SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.slice(0, 10) + "..." : undefined
-);
+const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
 if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error("Faltan variables de entorno. Revisa tu archivo .env");
@@ -23,6 +16,15 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+
+// Inicializar Firecrawl si hay API key disponible
+let firecrawl = null;
+if (FIRECRAWL_API_KEY) {
+  firecrawl = new FirecrawlApp({ apiKey: FIRECRAWL_API_KEY });
+  console.log("✅ Firecrawl inicializado con API key");
+} else {
+  console.log("⚠️ Firecrawl no disponible - usando extracción básica");
+}
 
 // Vinculación de usuario con /start <user_id>
 bot.onText(/^\/start(?:\s+)?([a-zA-Z0-9-]+)?/, async (msg, match) => {
@@ -114,30 +116,98 @@ bot.on("message", async (msg) => {
 
   if (text && text.startsWith("http")) {
     try {
-      // Obtener metadatos de la página
+      // Obtener metadatos de la página usando Firecrawl o extracción básica
       let title = null;
       let language = null;
       let authors = [];
       let topics = [];
+      let description = null;
+
       try {
-        const res = await fetch(text);
-        const html = await res.text();
-        const $ = cheerio.load(html);
-        title = $("title").text().trim();
-        language =
-          $("html").attr("lang") ||
-          $('meta[http-equiv="content-language"]').attr("content") ||
-          null;
-        const authorMeta = $('meta[name="author"]').attr("content");
-        if (authorMeta) {
-          authors = [authorMeta];
-        }
-        const keywordsMeta = $('meta[name="keywords"]').attr("content");
-        if (keywordsMeta) {
-          topics = keywordsMeta
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean);
+        if (firecrawl) {
+          // Usar Firecrawl para extracción avanzada
+          console.log("🔍 Extrayendo metadatos con Firecrawl...");
+          const result = await firecrawl.scrapeUrl({
+            url: text,
+            pageOptions: {
+              onlyMainContent: false,
+              includeHtml: false,
+              includeMarkdown: false,
+              includeScreenshot: false,
+              includeAllMetadata: true,
+            },
+          });
+
+          if (result.success && result.data) {
+            const metadata = result.data.metadata || {};
+            title = metadata.title || result.data.title || null;
+            description = metadata.description || null;
+            language = metadata.language || null;
+
+            // Extraer autores de diferentes fuentes
+            if (metadata.author) {
+              authors = Array.isArray(metadata.author)
+                ? metadata.author
+                : [metadata.author];
+            } else if (metadata.authors) {
+              authors = Array.isArray(metadata.authors)
+                ? metadata.authors
+                : [metadata.authors];
+            }
+
+            // Extraer temas/keywords
+            if (metadata.keywords) {
+              topics = Array.isArray(metadata.keywords)
+                ? metadata.keywords
+                : metadata.keywords
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean);
+            } else if (metadata.tags) {
+              topics = Array.isArray(metadata.tags)
+                ? metadata.tags
+                : [metadata.tags];
+            }
+
+            console.log("✅ Metadatos extraídos con Firecrawl:", {
+              title,
+              language,
+              authors,
+              topics,
+            });
+          }
+        } else {
+          // Fallback a extracción básica con fetch
+          console.log("🔍 Usando extracción básica...");
+          const res = await fetch(text);
+          const html = await res.text();
+
+          // Extracción básica de título
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          title = titleMatch ? titleMatch[1].trim() : null;
+
+          // Extracción básica de idioma
+          const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
+          language = langMatch ? langMatch[1] : null;
+
+          // Extracción básica de autor
+          const authorMatch = html.match(
+            /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
+          );
+          if (authorMatch) {
+            authors = [authorMatch[1]];
+          }
+
+          // Extracción básica de keywords
+          const keywordsMatch = html.match(
+            /<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i
+          );
+          if (keywordsMatch) {
+            topics = keywordsMatch[1]
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean);
+          }
         }
       } catch (e) {
         console.error("No se pudieron obtener los metadatos de la URL:", e);
@@ -168,6 +238,7 @@ bot.on("message", async (msg) => {
           language: language || null,
           authors: authors.length ? authors : null,
           topics: topics.length ? topics : null,
+          description: description || null,
         },
       ]);
       if (error) {
@@ -177,10 +248,14 @@ bot.on("message", async (msg) => {
         bot.sendMessage(
           chatId,
           `✅ ¡Artículo guardado!${title ? `\nTítulo: ${title}` : ""}${
-            languageName ? `\nIdioma: ${languageName}` : ""
-          }${authors.length ? `\nAutor(es): ${authors.join(", ")}` : ""}${
-            topics.length ? `\nTemas: ${topics.join(", ")}` : ""
-          }`
+            description
+              ? `\nDescripción: ${description.substring(0, 200)}${
+                  description.length > 200 ? "..." : ""
+                }`
+              : ""
+          }${languageName ? `\nIdioma: ${languageName}` : ""}${
+            authors.length ? `\nAutor(es): ${authors.join(", ")}` : ""
+          }${topics.length ? `\nTemas: ${topics.join(", ")}` : ""}`
         );
       }
     } catch (e) {
