@@ -257,18 +257,42 @@ bot.on("message", async (msg) => {
         console.error("Error al guardar en Supabase:", error);
         bot.sendMessage(chatId, "❌ Error al guardar el artículo.");
       } else {
-        bot.sendMessage(
-          chatId,
-          `✅ ¡Artículo guardado!${title ? `\nTítulo: ${title}` : ""}${
-            description
-              ? `\nDescripción: ${description.substring(0, 200)}${
-                  description.length > 200 ? "..." : ""
-                }`
-              : ""
-          }${languageName ? `\nIdioma: ${languageName}` : ""}${
-            authors.length ? `\nAutor(es): ${authors.join(", ")}` : ""
-          }${topics.length ? `\nTemas: ${topics.join(", ")}` : ""}`
-        );
+        // Construir mensaje de confirmación
+        let confirmMessage = `✅ ¡Artículo guardado!\n🔗 URL: ${text}`;
+
+        if (title) {
+          confirmMessage += `\n📝 Título: ${title}`;
+        }
+
+        if (description) {
+          confirmMessage += `\n📄 Descripción: ${description.substring(
+            0,
+            200
+          )}${description.length > 200 ? "..." : ""}`;
+        }
+
+        if (languageName) {
+          confirmMessage += `\n🌍 Idioma: ${languageName}`;
+        }
+
+        if (authors.length > 0) {
+          confirmMessage += `\n👥 Autor(es): ${authors.join(", ")}`;
+        }
+
+        if (topics.length > 0) {
+          confirmMessage += `\n🏷️ Temas: ${topics.join(", ")}`;
+        }
+
+        // Log para debug
+        console.log("📊 Metadatos finales:", {
+          title,
+          description,
+          language: languageName,
+          authors,
+          topics,
+        });
+
+        bot.sendMessage(chatId, confirmMessage);
       }
     } catch (e) {
       console.error("Error inesperado:", e);
