@@ -1,65 +1,4 @@
 /**
- * Extrae metadatos de una respuesta de Firecrawl
- * @param {Object} firecrawlResult - Resultado de Firecrawl
- * @returns {Object} Metadatos extraídos
- */
-export function extractMetadataFromFirecrawl(firecrawlResult) {
-  if (!firecrawlResult || !firecrawlResult.success || !firecrawlResult.data) {
-    return {
-      title: null,
-      description: null,
-      language: null,
-      authors: [],
-      topics: [],
-    };
-  }
-
-  const metadata = firecrawlResult.data.metadata || {};
-
-  // Extraer título
-  const title = firecrawlResult.data.title || metadata.title || null;
-
-  // Extraer descripción
-  const description = metadata.description || null;
-
-  // Extraer idioma
-  const language = metadata.language || null;
-
-  // Extraer autores
-  let authors = [];
-  if (metadata.author) {
-    authors = Array.isArray(metadata.author)
-      ? metadata.author
-      : [metadata.author];
-  } else if (metadata.authors) {
-    authors = Array.isArray(metadata.authors)
-      ? metadata.authors
-      : [metadata.authors];
-  }
-
-  // Extraer temas/keywords
-  let topics = [];
-  if (metadata.keywords) {
-    topics = Array.isArray(metadata.keywords)
-      ? metadata.keywords
-      : metadata.keywords
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean);
-  } else if (metadata.tags) {
-    topics = Array.isArray(metadata.tags) ? metadata.tags : [metadata.tags];
-  }
-
-  return {
-    title,
-    description,
-    language,
-    authors,
-    topics,
-  };
-}
-
-/**
  * Extrae metadatos usando extracción básica con regex
  * @param {string} html - HTML de la página
  * @returns {Object} Metadatos extraídos
@@ -116,7 +55,8 @@ export function extractMetadataBasic(html) {
  */
 export function translateLanguage(language) {
   if (!language) return null;
-  if (language.startsWith("en")) return "Inglés";
-  if (language.startsWith("es")) return "Castellano";
+  const lang = language.toLowerCase();
+  if (lang.startsWith("en")) return "Inglés";
+  if (lang.startsWith("es")) return "Castellano";
   return language;
 }

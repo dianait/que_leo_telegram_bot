@@ -14,13 +14,3 @@ console.log(
   "SUPABASE_ANON_KEY:",
   process.env.SUPABASE_ANON_KEY ? "✅ Configurado" : "❌ No encontrado"
 );
-console.log(
-  "FIRECRAWL_API_KEY:",
-  process.env.FIRECRAWL_API_KEY ? "✅ Configurado" : "❌ No encontrado"
-);
-
-if (process.env.FIRECRAWL_API_KEY) {
-  console.log("\n🚀 Firecrawl estará disponible en el bot");
-} else {
-  console.log("\n⚠️ Firecrawl no estará disponible - usando extracción básica");
-}
