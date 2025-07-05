@@ -11,6 +11,12 @@ import {
   insertArticle,
   prepareArticleData,
 } from "./db-service.js";
+import {
+  handleError,
+  handleDatabaseError,
+  handleNetworkError,
+  handleValidationError,
+} from "./error-handler.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -60,20 +66,15 @@ export function registerTelegramHandlers(bot, supabase) {
 
       const result = await insertUser(supabase, userData);
       if (!result.success) {
-        console.error("Error al vincular usuario:", result.error);
-        bot.sendMessage(
-          chatId,
-          "❌ Error al vincular tu cuenta. Intenta de nuevo."
-        );
+        handleDatabaseError(result.error, chatId, bot, "user-linking");
       } else {
         bot.sendMessage(
           chatId,
           "✅ ¡Tu cuenta de Telegram ha sido vinculada correctamente!"
         );
       }
-    } catch (e) {
-      console.error("Error inesperado:", e);
-      bot.sendMessage(chatId, "❌ Error inesperado al vincular tu cuenta.");
+    } catch (error) {
+      handleError(error, chatId, bot, "user-linking");
     }
   });
 
@@ -88,85 +89,93 @@ export function registerTelegramHandlers(bot, supabase) {
     // Ignora el mensaje /start con user_id (ya gestionado arriba)
     if (text && text.startsWith("/start")) return;
 
-    // Busca el user_id vinculado a este chat
-    const user = await findUserByChatId(supabase, chatId);
-    if (!user) {
-      bot.sendMessage(
-        chatId,
-        "❌ Debes vincular tu cuenta primero usando el botón de la app web."
-      );
-      return;
-    }
-
-    if (text && text.startsWith("http")) {
-      // Validar URL antes de procesarla
-      if (!isValidUrl(text)) {
+    try {
+      // Busca el user_id vinculado a este chat
+      const user = await findUserByChatId(supabase, chatId);
+      if (!user) {
         bot.sendMessage(
           chatId,
-          "❌ La URL no es válida. Asegúrate de que comience con http:// o https://"
+          "❌ Debes vincular tu cuenta primero usando el botón de la app web."
         );
         return;
       }
 
-      try {
-        // Extraer metadatos usando función separada
-        const { title, description, language, authors, topics } =
-          await fetchAndExtractMetadata(text);
-
-        // Verificar si el artículo ya existe por URL o título para este usuario
-        const existingArticle = await findArticleByUrlOrTitle(
-          supabase,
-          text,
-          title,
-          user.user_id
-        );
-        if (existingArticle) {
-          bot.sendMessage(chatId, "⚠️ Ya tienes este artículo guardado.");
+      if (text && text.startsWith("http")) {
+        // Validar URL antes de procesarla
+        if (!isValidUrl(text)) {
+          const validationError = new Error("URL inválida");
+          handleValidationError(validationError, chatId, bot, "url-validation");
           return;
         }
 
-        // Preparar datos del artículo
-        const articleData = prepareArticleData({
-          url: text,
-          userId: user.user_id,
-          title,
-          language,
-          authors,
-          topics,
-          description,
-        });
+        try {
+          // Extraer metadatos usando función separada
+          const { title, description, language, authors, topics } =
+            await fetchAndExtractMetadata(text);
 
-        // Insertar artículo
-        const result = await insertArticle(supabase, articleData);
-        if (!result.success) {
-          console.error("Error al guardar en Supabase:", result.error);
-          bot.sendMessage(chatId, "❌ Error al guardar el artículo.");
-        } else {
-          // Construir mensaje de confirmación usando función separada
-          const confirmMessage = buildConfirmationMessage({
+          // Verificar si el artículo ya existe por URL o título para este usuario
+          const existingArticle = await findArticleByUrlOrTitle(
+            supabase,
+            text,
+            title,
+            user.user_id
+          );
+          if (existingArticle) {
+            bot.sendMessage(chatId, "⚠️ Ya tienes este artículo guardado.");
+            return;
+          }
+
+          // Preparar datos del artículo
+          const articleData = prepareArticleData({
             url: text,
+            userId: user.user_id,
             title,
-            description,
             language,
             authors,
             topics,
-          });
-          // Log para debug
-          console.log("📊 Metadatos finales:", {
-            title,
             description,
-            language,
-            authors,
-            topics,
           });
-          bot.sendMessage(chatId, confirmMessage);
+
+          // Insertar artículo
+          const result = await insertArticle(supabase, articleData);
+          if (!result.success) {
+            handleDatabaseError(result.error, chatId, bot, "article-insertion");
+          } else {
+            // Construir mensaje de confirmación usando función separada
+            const confirmMessage = buildConfirmationMessage({
+              url: text,
+              title,
+              description,
+              language,
+              authors,
+              topics,
+            });
+            // Log para debug
+            console.log("📊 Metadatos finales:", {
+              title,
+              description,
+              language,
+              authors,
+              topics,
+            });
+            bot.sendMessage(chatId, confirmMessage);
+          }
+        } catch (error) {
+          // Manejar errores específicos de extracción de metadatos
+          if (
+            error.message.includes("fetch") ||
+            error.message.includes("network")
+          ) {
+            handleNetworkError(error, chatId, bot, "metadata-extraction");
+          } else {
+            handleError(error, chatId, bot, "metadata-extraction");
+          }
         }
-      } catch (e) {
-        console.error("Error inesperado:", e);
-        bot.sendMessage(chatId, "❌ Error inesperado.");
+      } else {
+        bot.sendMessage(chatId, "Envíame un enlace para guardarlo.");
       }
-    } else {
-      bot.sendMessage(chatId, "Envíame un enlace para guardarlo.");
+    } catch (error) {
+      handleError(error, chatId, bot, "message-processing");
     }
   });
 }
