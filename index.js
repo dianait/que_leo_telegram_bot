@@ -116,6 +116,18 @@ bot.on("message", async (msg) => {
 
   if (text && text.startsWith("http")) {
     try {
+      // Validar URL antes de procesarla
+      let urlToProcess = text;
+      try {
+        new URL(text); // Validar que es una URL válida
+      } catch (urlError) {
+        bot.sendMessage(
+          chatId,
+          "❌ La URL no es válida. Asegúrate de que comience con http:// o https://"
+        );
+        return;
+      }
+
       // Obtener metadatos de la página usando Firecrawl o extracción básica
       let title = null;
       let language = null;
