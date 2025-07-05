@@ -1,18 +1,17 @@
-# Bot de Telegram para Guardar Artículos
+# <img src="screenshots/que-leo.icon.png" width="48" height="48" style="vertical-align: middle; margin-right: 8px;" /> ¿Qué leo? Telegram bot
 
-Un bot de Telegram que permite a los usuarios guardar artículos web en una base de datos Supabase. El bot extrae metadatos automáticamente de las páginas web usando Firecrawl (recomendado) o extracción básica como fallback.
+Un bot de Telegram que permite a los usuarios guardar artículos web en Supabase con extracción automática de metadatos.
+
+<img src="screenshots/que-leo-bot.png" width="600" alt="Bot de Telegram" />
 
 ## Características
 
-- ✅ Vinculación de usuarios de Telegram con cuentas web
-- 🔍 Extracción automática de metadatos de artículos web
-- 📚 Almacenamiento en Supabase
-- 🤖 Interfaz conversacional en Telegram
-- 🔄 Detección de artículos duplicados
+- 🛡️ Rate limiting (5 artículos por minuto por usuario)
+- ⚠️ Manejo robusto de errores con mensajes claros
+- 🧪 6 tests automatizados
+- ✅ Validación de URLs y metadatos
+- 🔍 Extracción automática de metadatos de artículos
 
-## Uso
+## Contribuir
 
-1. **Vincular cuenta**: El usuario debe usar el botón de la app web para obtener un enlace de vinculación
-2. **Enviar enlace**: Una vez vinculado, el usuario puede enviar cualquier enlace web al bot
-3. **Guardado automático**: El bot extrae metadatos y guarda el artículo en Supabase
-
+Se aceptan Pull Requests. Por favor, asegúrate de que todos los tests pasen antes de enviar un PR.
