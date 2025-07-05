@@ -12,13 +12,12 @@
   "dependencies": {
     "@supabase/supabase-js": "2.50.1",
     "dotenv": "16.6.0",
-    "node-telegram-bot-api": "0.63.0",
     "node-fetch": "3.3.2",
-    "firecrawl": "1.29.1"
+    "node-telegram-bot-api": "0.63.0"
   },
   "devDependencies": {
-    "jest": "29.7.0",
-    "@types/jest": "29.5.8"
+    "@types/jest": "29.5.8",
+    "jest": "29.7.0"
   },
   "jest": {
     "globals": {

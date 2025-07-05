@@ -1,13 +1,11 @@
 import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
-import FirecrawlApp from "firecrawl";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
 if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error("Faltan variables de entorno. Revisa tu archivo .env");
@@ -17,9 +15,7 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// Desactivar Firecrawl temporalmente - usar solo extracción básica
-let firecrawl = null;
-console.log("🔧 Firecrawl desactivado - usando extracción básica");
+console.log("🚀 Bot iniciado - usando extracción básica de metadatos");
 
 // Vinculación de usuario con /start <user_id>
 bot.onText(/^\/start(?:\s+)?([a-zA-Z0-9-]+)?/, async (msg, match) => {
@@ -131,120 +127,47 @@ bot.on("message", async (msg) => {
       let description = null;
 
       try {
-        if (firecrawl) {
-          // Usar Firecrawl para extracción avanzada
-          console.log("🔍 Extrayendo metadatos con Firecrawl...");
-          console.log("🔗 URL a procesar:", text);
+        // Usar extracción básica con fetch
+        console.log("🔍 Extrayendo metadatos con método básico...");
+        try {
+          const res = await fetch(text);
+          const html = await res.text();
 
-          try {
-            const result = await firecrawl.scrapeUrl({
-              url: text,
-              pageOptions: {
-                onlyMainContent: false,
-                includeHtml: false,
-                includeMarkdown: false,
-                includeScreenshot: false,
-                includeAllMetadata: true,
-              },
-            });
+          // Extracción básica de título
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          title = titleMatch ? titleMatch[1].trim() : null;
 
-            if (result.success && result.data) {
-              console.log(
-                "🔍 Respuesta completa de Firecrawl:",
-                JSON.stringify(result, null, 2)
-              );
+          // Extracción básica de idioma
+          const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
+          language = langMatch ? langMatch[1] : null;
 
-              const metadata = result.data.metadata || {};
-              title = metadata.title || result.data.title || null;
-              description = metadata.description || null;
-              language = metadata.language || null;
-
-              // Extraer autores de diferentes fuentes
-              if (metadata.author) {
-                authors = Array.isArray(metadata.author)
-                  ? metadata.author
-                  : [metadata.author];
-              } else if (metadata.authors) {
-                authors = Array.isArray(metadata.authors)
-                  ? metadata.authors
-                  : [metadata.authors];
-              }
-
-              // Extraer temas/keywords
-              if (metadata.keywords) {
-                topics = Array.isArray(metadata.keywords)
-                  ? metadata.keywords
-                  : metadata.keywords
-                      .split(",")
-                      .map((t) => t.trim())
-                      .filter(Boolean);
-              } else if (metadata.tags) {
-                topics = Array.isArray(metadata.tags)
-                  ? metadata.tags
-                  : [metadata.tags];
-              }
-
-              console.log("✅ Metadatos extraídos con Firecrawl:", {
-                title,
-                description,
-                language,
-                authors,
-                topics,
-              });
-            } else {
-              console.log("❌ Firecrawl no devolvió datos válidos:", result);
-              throw new Error("Firecrawl no devolvió datos válidos");
-            }
-          } catch (firecrawlError) {
-            console.error("❌ Error de Firecrawl:", firecrawlError.message);
-            console.log("🔄 Intentando extracción básica como fallback...");
+          // Extracción básica de autor
+          const authorMatch = html.match(
+            /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
+          );
+          if (authorMatch) {
+            authors = [authorMatch[1]];
           }
-        }
 
-        // Si Firecrawl falló o no está disponible, usar extracción básica
-        if (!firecrawl || !title) {
-          // Fallback a extracción básica con fetch
-          console.log("🔍 Usando extracción básica...");
-          try {
-            const res = await fetch(text);
-            const html = await res.text();
-
-            // Extracción básica de título
-            const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-            title = titleMatch ? titleMatch[1].trim() : null;
-
-            // Extracción básica de idioma
-            const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
-            language = langMatch ? langMatch[1] : null;
-
-            // Extracción básica de autor
-            const authorMatch = html.match(
-              /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
-            );
-            if (authorMatch) {
-              authors = [authorMatch[1]];
-            }
-
-            // Extracción básica de keywords
-            const keywordsMatch = html.match(
-              /<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i
-            );
-            if (keywordsMatch) {
-              topics = keywordsMatch[1]
-                .split(",")
-                .map((t) => t.trim())
-                .filter(Boolean);
-            }
-
-            console.log("✅ Metadatos extraídos con método básico:", {
-              title,
-              language,
-              authors,
-              topics,
-            });
-          } catch (fetchError) {
-            console.error("❌ Error en extracción básica:", fetchError);
+          // Extracción básica de keywords
+          const keywordsMatch = html.match(
+            /<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i
+          );
+          if (keywordsMatch) {
+            topics = keywordsMatch[1]
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean);
           }
+
+          console.log("✅ Metadatos extraídos con método básico:", {
+            title,
+            language,
+            authors,
+            topics,
+          });
+        } catch (fetchError) {
+          console.error("❌ Error en extracción básica:", fetchError);
         }
       } catch (e) {
         console.error("No se pudieron obtener los metadatos de la URL:", e);
