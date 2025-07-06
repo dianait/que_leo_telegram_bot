@@ -16,7 +16,5 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-
-console.log("🚀 Bot iniciado - usando extracción básica de metadatos");
-
+console.log("🚀 Bot iniciado");
 registerTelegramHandlers(bot, supabase);

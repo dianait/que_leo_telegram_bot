@@ -122,14 +122,8 @@ export function registerTelegramHandlers(bot, supabase) {
 
         try {
           // Extraer metadatos usando función separada
-          const {
-            title,
-            description,
-            language,
-            authors,
-            topics,
-            featuredImage,
-          } = await fetchAndExtractMetadata(text);
+          const { title, description, language, authors, topics, featuredimage } =
+            await fetchAndExtractMetadata(text);
 
           // Verificar si el artículo ya existe por URL o título para este usuario
           const existingArticle = await findArticleByUrlOrTitle(
@@ -152,7 +146,7 @@ export function registerTelegramHandlers(bot, supabase) {
             authors,
             topics,
             description,
-            featuredImage,
+            featuredimage,
           });
 
           // Insertar artículo
@@ -168,7 +162,7 @@ export function registerTelegramHandlers(bot, supabase) {
               language,
               authors,
               topics,
-              featuredImage,
+              featuredimage,
             });
 
             // Log para debug
@@ -178,13 +172,13 @@ export function registerTelegramHandlers(bot, supabase) {
               language,
               authors,
               topics,
-              featuredImage,
+              featuredimage,
             });
 
             // Enviar mensaje con imagen si está disponible
-            if (featuredImage) {
+            if (featuredimage) {
               try {
-                await bot.sendPhoto(chatId, featuredImage, {
+                await bot.sendPhoto(chatId, featuredimage, {
                   caption: confirmMessage,
                   parse_mode: "HTML",
                 });

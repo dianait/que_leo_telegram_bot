@@ -164,7 +164,7 @@ export function extractMetadataBasic(html, baseUrl = null) {
       language: null,
       authors: [],
       topics: [],
-      featuredImage: null,
+      featuredimage: null,
     };
   }
 
@@ -194,7 +194,7 @@ export function extractMetadataBasic(html, baseUrl = null) {
     : [];
 
   // Extraer imagen destacada
-  const featuredImage = extractFeaturedImage(html, baseUrl);
+  const featuredimage = extractFeaturedImage(html, baseUrl);
 
   return {
     title,
@@ -202,7 +202,7 @@ export function extractMetadataBasic(html, baseUrl = null) {
     language,
     authors,
     topics,
-    featuredImage,
+    featuredimage,
   };
 }
 

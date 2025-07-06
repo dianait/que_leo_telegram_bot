@@ -150,7 +150,7 @@ export async function insertArticle(supabase, articleData) {
  * @param {Array<string>} params.authors
  * @param {Array<string>} params.topics
  * @param {string|null} params.description
- * @param {string|null} params.featuredImage
+ * @param {string|null} params.featuredimage
  * @returns {Object} Datos preparados para insertar
  */
 export function prepareArticleData({
@@ -161,7 +161,7 @@ export function prepareArticleData({
   authors,
   topics,
   description,
-  featuredImage,
+  featuredimage,
 }) {
   return {
     url,
@@ -172,6 +172,6 @@ export function prepareArticleData({
     authors: authors && authors.length ? authors : null,
     topics: topics && topics.length ? topics : null,
     description: description || null,
-    featuredImage: featuredImage || null,
+    featuredimage: featuredimage || null,
   };
 }
