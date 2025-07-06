@@ -8,7 +8,6 @@ import {
   insertUser,
   isUserAlreadyLinked,
   upsertArticleAndUserRelation,
-  prepareArticleData,
 } from "../db/service.js";
 import {
   handleError,

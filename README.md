@@ -7,7 +7,6 @@ Un bot de Telegram que permite a los usuarios guardar artículos para leer despu
 ## Características
 
 - 🛡️ Rate limiting (5 artículos por minuto por usuario)
-- ⚠️ Manejo robusto de errores con mensajes claros
 - 🧪 6 tests automatizados
 - ✅ Validación de URLs y metadatos
 - 🔍 Extracción automática de metadatos de artículos

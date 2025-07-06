@@ -25,7 +25,7 @@ describe("Metadata Extractor", () => {
         language: "es",
         authors: ["María García"],
         topics: ["básico", "html", "test"],
-        featuredImage: null,
+        featuredimage: null,
       });
     });
 
@@ -40,7 +40,7 @@ describe("Metadata Extractor", () => {
         </html>
       `;
       const result = extractMetadataBasic(html, "https://example.com");
-      expect(result.featuredImage).toBe("https://example.com/image.jpg");
+      expect(result.featuredimage).toBe("https://example.com/image.jpg");
     });
 
     test("extrae imagen destacada de Twitter Cards", () => {
@@ -54,7 +54,7 @@ describe("Metadata Extractor", () => {
         </html>
       `;
       const result = extractMetadataBasic(html, "https://example.com");
-      expect(result.featuredImage).toBe(
+      expect(result.featuredimage).toBe(
         "https://example.com/twitter-image.jpg"
       );
     });
@@ -70,7 +70,7 @@ describe("Metadata Extractor", () => {
         </html>
       `;
       const result = extractMetadataBasic(html, "https://example.com");
-      expect(result.featuredImage).toBe("https://example.com/meta-image.jpg");
+      expect(result.featuredimage).toBe("https://example.com/meta-image.jpg");
     });
 
     test("extrae imagen destacada del contenido HTML", () => {
@@ -84,7 +84,7 @@ describe("Metadata Extractor", () => {
         </html>
       `;
       const result = extractMetadataBasic(html, "https://example.com");
-      expect(result.featuredImage).toBe(
+      expect(result.featuredimage).toBe(
         "https://example.com/content-image.jpg"
       );
     });
@@ -100,7 +100,7 @@ describe("Metadata Extractor", () => {
         </html>
       `;
       const result = extractMetadataBasic(html, "https://example.com");
-      expect(result.featuredImage).toBe(
+      expect(result.featuredimage).toBe(
         "https://example.com/images/featured.jpg"
       );
     });
@@ -117,7 +117,7 @@ describe("Metadata Extractor", () => {
         </html>
       `;
       const result = extractMetadataBasic(html, "https://example.com");
-      expect(result.featuredImage).toBe("https://example.com/featured.jpg");
+      expect(result.featuredimage).toBe("https://example.com/featured.jpg");
     });
 
     test("decodifica entidades HTML en el título", () => {
@@ -153,7 +153,7 @@ describe("Metadata Extractor", () => {
       expect(result.language).toBeNull();
       expect(result.authors).toEqual([]);
       expect(result.topics).toEqual([]);
-      expect(result.featuredImage).toBeNull();
+      expect(result.featuredimage).toBeNull();
     });
 
     test("maneja HTML vacío o inválido", () => {
@@ -165,7 +165,7 @@ describe("Metadata Extractor", () => {
         language: null,
         authors: [],
         topics: [],
-        featuredImage: null,
+        featuredimage: null,
       });
     });
 
@@ -177,7 +177,7 @@ describe("Metadata Extractor", () => {
       expect(result.language).toBeNull();
       expect(result.authors).toEqual([]);
       expect(result.topics).toEqual([]);
-      expect(result.featuredImage).toBeNull();
+      expect(result.featuredimage).toBeNull();
     });
 
     test("extrae metadatos con diferentes formatos de lang", () => {

@@ -1,8 +1,0 @@
-#!/usr/bin/env sh
-. "$(dirname "$0")/_/h"
-
-npm test || exit 1
-
-node scripts/update-readme.js
-
-git add README.md 
