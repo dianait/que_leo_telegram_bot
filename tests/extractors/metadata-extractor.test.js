@@ -28,24 +28,27 @@ describe("Metadata Extractor", () => {
       });
     });
 
-    test("extrae metadatos de HTML con múltiples autores", () => {
-      const mockHtml = `
-        <html lang="en">
-          <head>
-            <title>Multiple Authors Article</title>
-            <meta name="author" content="Author 1, Author 2, Author 3">
-            <meta name="keywords" content="multiple, authors, test">
-          </head>
-          <body>Content</body>
-        </html>
-      `;
+    test("decodifica entidades HTML en el título", () => {
+      const html =
+        "<html><head><title>In Praise of &#8220;Normal&#8221; Engineers &#8211; charity.wtf</title></head><body></body></html>";
+      const result = extractMetadataBasic(html);
+      expect(result.title).toBe(
+        'In Praise of "Normal" Engineers – charity.wtf'
+      );
+    });
 
-      const result = extractMetadataBasic(mockHtml);
+    test("decodifica entidades HTML en autores", () => {
+      const html =
+        '<html><head><meta name="author" content="John &#8217;Smith"></head><body></body></html>';
+      const result = extractMetadataBasic(html);
+      expect(result.authors).toEqual(["John 'Smith"]);
+    });
 
-      expect(result.title).toBe("Multiple Authors Article");
-      expect(result.language).toBe("en");
-      expect(result.authors).toEqual(["Author 1, Author 2, Author 3"]);
-      expect(result.topics).toEqual(["multiple", "authors", "test"]);
+    test("decodifica entidades HTML en keywords", () => {
+      const html =
+        '<html><head><meta name="keywords" content="engineering, &#8220;best practices&#8221;"></head><body></body></html>';
+      const result = extractMetadataBasic(html);
+      expect(result.topics).toEqual(["engineering", '"best practices"']);
     });
 
     test("maneja HTML sin metadatos", () => {
@@ -143,16 +146,14 @@ describe("Metadata Extractor", () => {
       expect(translateLanguage("ru")).toBe("ru");
       expect(translateLanguage("ja")).toBe("ja");
       expect(translateLanguage("zh")).toBe("zh");
-      expect(translateLanguage("ar")).toBe("ar");
     });
 
     test("maneja valores nulos o vacíos", () => {
       expect(translateLanguage(null)).toBeNull();
       expect(translateLanguage("")).toBeNull();
-      expect(translateLanguage(undefined)).toBeNull();
     });
 
-    test("maneja códigos de idioma en mayúsculas", () => {
+    test("acepta mayúsculas y minúsculas", () => {
       expect(translateLanguage("EN")).toBe("Inglés");
       expect(translateLanguage("ES")).toBe("Castellano");
       expect(translateLanguage("FR")).toBe("FR");

@@ -1,4 +1,30 @@
 /**
+ * Decodifica entidades HTML comunes
+ * @param {string} text - Texto con entidades HTML
+ * @returns {string} Texto decodificado
+ */
+function decodeHtmlEntities(text) {
+  if (!text) return text;
+
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#8217;/g, "'")
+    .replace(/&#8216;/g, "'")
+    .replace(/&#8220;/g, '"')
+    .replace(/&#8221;/g, '"')
+    .replace(/&#8211;/g, "–")
+    .replace(/&#8212;/g, "—")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&copy;/g, "©")
+    .replace(/&reg;/g, "®")
+    .replace(/&trade;/g, "™");
+}
+
+/**
  * Extrae metadatos usando extracción básica con regex
  * @param {string} html - HTML de la página
  * @returns {Object} Metadatos extraídos
@@ -16,7 +42,7 @@ export function extractMetadataBasic(html) {
 
   // Extraer título
   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const title = titleMatch ? titleMatch[1].trim() : null;
+  const title = titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : null;
 
   // Extraer idioma
   const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
@@ -26,7 +52,7 @@ export function extractMetadataBasic(html) {
   const authorMatch = html.match(
     /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
   );
-  const authors = authorMatch ? [authorMatch[1]] : [];
+  const authors = authorMatch ? [decodeHtmlEntities(authorMatch[1])] : [];
 
   // Extraer keywords
   const keywordsMatch = html.match(
@@ -35,7 +61,7 @@ export function extractMetadataBasic(html) {
   const topics = keywordsMatch
     ? keywordsMatch[1]
         .split(",")
-        .map((t) => t.trim())
+        .map((t) => decodeHtmlEntities(t.trim()))
         .filter(Boolean)
     : [];
 
