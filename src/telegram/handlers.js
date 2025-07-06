@@ -7,8 +7,7 @@ import {
   findUserByChatId,
   insertUser,
   isUserAlreadyLinked,
-  findArticleByUrlOrTitle,
-  insertArticle,
+  upsertArticleAndUserRelation,
   prepareArticleData,
 } from "../db/service.js";
 import {
@@ -122,76 +121,75 @@ export function registerTelegramHandlers(bot, supabase) {
 
         try {
           // Extraer metadatos usando función separada
-          const { title, description, language, authors, topics, featuredimage } =
-            await fetchAndExtractMetadata(text);
-
-          // Verificar si el artículo ya existe por URL o título para este usuario
-          const existingArticle = await findArticleByUrlOrTitle(
-            supabase,
-            text,
+          const {
             title,
-            user.user_id
-          );
-          if (existingArticle) {
-            bot.sendMessage(chatId, "⚠️ Ya tienes este artículo guardado.");
-            return;
-          }
+            description,
+            language,
+            authors,
+            topics,
+            featuredimage,
+          } = await fetchAndExtractMetadata(text);
 
-          // Preparar datos del artículo
-          const articleData = prepareArticleData({
+          // Preparar datos del artículo para el nuevo modelo
+          const articleData = {
             url: text,
-            userId: user.user_id,
             title,
             language,
             authors,
             topics,
+            featured_image: featuredimage,
+            // Puedes añadir aquí otros campos como less_15 si lo necesitas
+          };
+
+          // Guardar o actualizar artículo y relación usuario-artículo
+          const result = await upsertArticleAndUserRelation(
+            supabase,
+            articleData,
+            user.user_id
+          );
+
+          if (!result.success) {
+            handleDatabaseError(result.error, chatId, bot, "article-insertion");
+            return;
+          }
+
+          // Construir mensaje de confirmación usando función separada
+          const confirmMessage = buildConfirmationMessage({
+            url: text,
+            title,
             description,
+            language,
+            authors,
+            topics,
             featuredimage,
           });
 
-          // Insertar artículo
-          const result = await insertArticle(supabase, articleData);
-          if (!result.success) {
-            handleDatabaseError(result.error, chatId, bot, "article-insertion");
-          } else {
-            // Construir mensaje de confirmación usando función separada
-            const confirmMessage = buildConfirmationMessage({
-              url: text,
-              title,
-              description,
-              language,
-              authors,
-              topics,
-              featuredimage,
-            });
+          // Log para debug
+          console.log("📊 Metadatos finales:", {
+            title,
+            description,
+            language,
+            authors,
+            topics,
+            featuredimage,
+          });
 
-            // Log para debug
-            console.log("📊 Metadatos finales:", {
-              title,
-              description,
-              language,
-              authors,
-              topics,
-              featuredimage,
-            });
-
-            // Enviar mensaje con imagen si está disponible
-            if (featuredimage) {
-              try {
-                await bot.sendPhoto(chatId, featuredimage, {
-                  caption: confirmMessage,
-                  parse_mode: "HTML",
-                });
-              } catch (photoError) {
-                console.warn(
-                  "Error enviando imagen, enviando solo texto:",
-                  photoError.message
-                );
-                bot.sendMessage(chatId, confirmMessage);
-              }
-            } else {
+          // Enviar mensaje con imagen si está disponible
+          if (featuredimage) {
+            try {
+              await bot.sendPhoto(chatId, featuredimage, {
+                caption: confirmMessage,
+                parse_mode: "HTML",
+              });
+            } catch (photoError) {
+              console.warn(
+                "Error enviando imagen, enviando solo texto:",
+                photoError.message
+              );
               bot.sendMessage(chatId, confirmMessage);
             }
+          } else {
+            bot.sendMessage(chatId, confirmMessage);
           }
         } catch (error) {
           // Manejar errores específicos de extracción de metadatos

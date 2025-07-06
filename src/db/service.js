@@ -175,3 +175,84 @@ export function prepareArticleData({
     featuredimage: featuredimage || null,
   };
 }
+
+/**
+ * Guarda o actualiza un artículo y la relación con el usuario.
+ * @param {SupabaseClient} supabase
+ * @param {Object} articleData - { url, title, language, authors, topics, featured_image, less_15 }
+ * @param {string} user_id
+ * @returns {Promise<{ success: boolean, article: object, relation: object, error?: any }>}
+ */
+export async function upsertArticleAndUserRelation(
+  supabase,
+  articleData,
+  user_id
+) {
+  // 1. Buscar el artículo por URL
+  const { data: existingArticles, error: findError } = await supabase
+    .from("articles")
+    .select("*")
+    .eq("url", articleData.url)
+    .limit(1);
+
+  let articleId;
+  let articleResult;
+
+  if (findError) {
+    return { success: false, error: findError };
+  }
+
+  if (existingArticles && existingArticles.length > 0) {
+    // 2. Si existe, actualizarlo
+    articleId = existingArticles[0].id;
+    const { data: updated, error: updateError } = await supabase
+      .from("articles")
+      .update({
+        ...articleData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", articleId)
+      .select()
+      .single();
+
+    if (updateError) return { success: false, error: updateError };
+    articleResult = updated;
+  } else {
+    // 3. Si no existe, insertarlo
+    const { data: inserted, error: insertError } = await supabase
+      .from("articles")
+      .insert({
+        ...articleData,
+        created_at: new Date().toISOString(),
+        added_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (insertError) return { success: false, error: insertError };
+    articleId = inserted.id;
+    articleResult = inserted;
+  }
+
+  // 4. Insertar o actualizar la relación en user_articles
+  // (Si ya existe, no hace nada; si no, la crea)
+  const { data: userArticle, error: relError } = await supabase
+    .from("user_articles")
+    .upsert(
+      {
+        user_id,
+        article_id: articleId,
+        added_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_read: false,
+      },
+      { onConflict: ["user_id", "article_id"] }
+    )
+    .select()
+    .single();
+
+  if (relError) return { success: false, error: relError };
+
+  return { success: true, article: articleResult, relation: userArticle };
+}
