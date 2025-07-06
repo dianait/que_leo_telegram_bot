@@ -2,6 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { registerTelegramHandlers } from "./src/telegram/handlers.js";
+import { startWebServer } from "./src/web/server.js";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -16,5 +17,10 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-console.log("🚀 Bot iniciado");
+
+// Iniciar bot de Telegram
+console.log("🚀 Bot de Telegram iniciado");
 registerTelegramHandlers(bot, supabase);
+
+// Iniciar servidor web
+startWebServer();
