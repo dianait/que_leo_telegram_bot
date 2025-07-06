@@ -13,7 +13,7 @@ export async function fetchAndExtractMetadata(url) {
   try {
     const res = await fetch(url);
     const html = await res.text();
-    return extractMetadataBasic(html);
+    return extractMetadataBasic(html, url);
   } catch (error) {
     // Si hay error, devolver metadatos vacíos
     return {
@@ -22,6 +22,7 @@ export async function fetchAndExtractMetadata(url) {
       language: null,
       authors: [],
       topics: [],
+      featuredImage: null,
     };
   }
 }
@@ -44,6 +45,7 @@ export function isValidUrl(url) {
  * @param {string|null} params.language
  * @param {Array<string>} params.authors
  * @param {Array<string>} params.topics
+ * @param {string|null} params.featuredImage
  * @returns {string}
  */
 export function buildConfirmationMessage({
@@ -53,6 +55,7 @@ export function buildConfirmationMessage({
   language,
   authors,
   topics,
+  featuredImage,
 }) {
   let message = `✅ ¡Artículo guardado!\n🔗 URL: ${url}`;
 
@@ -77,6 +80,10 @@ export function buildConfirmationMessage({
 
   if (topics && topics.length > 0) {
     message += `\n🏷️ Temas: ${topics.join(", ")}`;
+  }
+
+  if (featuredImage) {
+    message += `\n🖼️ Imagen destacada disponible`;
   }
 
   return message;

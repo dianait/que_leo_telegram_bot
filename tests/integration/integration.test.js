@@ -214,6 +214,7 @@ describe("Integration Tests", () => {
         language: null,
         authors: [],
         topics: [],
+        featuredImage: null,
       });
     });
 

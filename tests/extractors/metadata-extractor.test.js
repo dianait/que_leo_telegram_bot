@@ -25,7 +25,99 @@ describe("Metadata Extractor", () => {
         language: "es",
         authors: ["María García"],
         topics: ["básico", "html", "test"],
+        featuredImage: null,
       });
+    });
+
+    test("extrae imagen destacada de Open Graph", () => {
+      const html = `
+        <html>
+          <head>
+            <title>Test Article</title>
+            <meta property="og:image" content="https://example.com/image.jpg">
+          </head>
+          <body>Content</body>
+        </html>
+      `;
+      const result = extractMetadataBasic(html, "https://example.com");
+      expect(result.featuredImage).toBe("https://example.com/image.jpg");
+    });
+
+    test("extrae imagen destacada de Twitter Cards", () => {
+      const html = `
+        <html>
+          <head>
+            <title>Test Article</title>
+            <meta name="twitter:image" content="https://example.com/twitter-image.jpg">
+          </head>
+          <body>Content</body>
+        </html>
+      `;
+      const result = extractMetadataBasic(html, "https://example.com");
+      expect(result.featuredImage).toBe(
+        "https://example.com/twitter-image.jpg"
+      );
+    });
+
+    test("extrae imagen destacada de meta tag genérico", () => {
+      const html = `
+        <html>
+          <head>
+            <title>Test Article</title>
+            <meta name="image" content="https://example.com/meta-image.jpg">
+          </head>
+          <body>Content</body>
+        </html>
+      `;
+      const result = extractMetadataBasic(html, "https://example.com");
+      expect(result.featuredImage).toBe("https://example.com/meta-image.jpg");
+    });
+
+    test("extrae imagen destacada del contenido HTML", () => {
+      const html = `
+        <html>
+          <head><title>Test Article</title></head>
+          <body>
+            <img src="https://example.com/content-image.jpg" width="800" height="600" alt="Content Image">
+            <img src="https://example.com/small-icon.png" width="16" height="16" alt="Icon">
+          </body>
+        </html>
+      `;
+      const result = extractMetadataBasic(html, "https://example.com");
+      expect(result.featuredImage).toBe(
+        "https://example.com/content-image.jpg"
+      );
+    });
+
+    test("resuelve URLs relativas correctamente", () => {
+      const html = `
+        <html>
+          <head>
+            <title>Test Article</title>
+            <meta property="og:image" content="/images/featured.jpg">
+          </head>
+          <body>Content</body>
+        </html>
+      `;
+      const result = extractMetadataBasic(html, "https://example.com");
+      expect(result.featuredImage).toBe(
+        "https://example.com/images/featured.jpg"
+      );
+    });
+
+    test("filtra imágenes pequeñas e iconos", () => {
+      const html = `
+        <html>
+          <head><title>Test Article</title></head>
+          <body>
+            <img src="https://example.com/icon.png" width="32" height="32" alt="Icon">
+            <img src="https://example.com/logo.png" alt="Logo">
+            <img src="https://example.com/featured.jpg" width="800" height="600" alt="Featured">
+          </body>
+        </html>
+      `;
+      const result = extractMetadataBasic(html, "https://example.com");
+      expect(result.featuredImage).toBe("https://example.com/featured.jpg");
     });
 
     test("decodifica entidades HTML en el título", () => {
@@ -61,6 +153,7 @@ describe("Metadata Extractor", () => {
       expect(result.language).toBeNull();
       expect(result.authors).toEqual([]);
       expect(result.topics).toEqual([]);
+      expect(result.featuredImage).toBeNull();
     });
 
     test("maneja HTML vacío o inválido", () => {
@@ -72,6 +165,7 @@ describe("Metadata Extractor", () => {
         language: null,
         authors: [],
         topics: [],
+        featuredImage: null,
       });
     });
 
@@ -83,6 +177,7 @@ describe("Metadata Extractor", () => {
       expect(result.language).toBeNull();
       expect(result.authors).toEqual([]);
       expect(result.topics).toEqual([]);
+      expect(result.featuredImage).toBeNull();
     });
 
     test("extrae metadatos con diferentes formatos de lang", () => {
