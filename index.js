@@ -10,6 +10,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error("Faltan variables de entorno. Revisa tu archivo .env");
+  console.error("Necesitas: TELEGRAM_TOKEN, SUPABASE_URL, SUPABASE_ANON_KEY");
   process.exit(1);
 }
 
