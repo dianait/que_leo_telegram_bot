@@ -9,7 +9,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors()); // Permitir cualquier origen temporalmente para pruebas
+app.use(
+  cors({
+    origin: "https://que-leo.vercel.app",
+    methods: ["GET"],
+    credentials: false,
+  })
+);
 app.use(express.json());
 
 // Endpoint GET para extraer metadatos
