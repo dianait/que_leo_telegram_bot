@@ -63,3 +63,15 @@ export function isValidUserId(userId) {
   // Debe ser alfanumérico y puede contener guiones
   return /^[a-zA-Z0-9-]+$/.test(userId);
 }
+
+/**
+ * Extrae la primera URL válida de un texto
+ * @param {string} text - Texto que puede contener una URL
+ * @returns {string|null} La primera URL encontrada o null si no hay ninguna
+ */
+export function extractFirstUrl(text) {
+  if (!text || typeof text !== "string") return null;
+  const urlRegex = /(https?:\/\/[\w\-\.\/?#&=;%+~:@!$'()*\[\],]+)/i;
+  const match = text.match(urlRegex);
+  return match ? match[0] : null;
+}

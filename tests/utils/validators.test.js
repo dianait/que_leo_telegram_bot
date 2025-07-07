@@ -3,6 +3,7 @@ import {
   parseStartCommand,
   isLinkMessage,
   isValidUserId,
+  extractFirstUrl,
 } from "../../src/utils/validators.js";
 
 describe("Validators", () => {
@@ -109,5 +110,38 @@ describe("Validators", () => {
       expect(isValidUserId(null)).toBe(false);
       expect(isValidUserId(undefined)).toBe(false);
     });
+  });
+});
+
+describe("extractFirstUrl", () => {
+  it("extrae la URL cuando el texto es solo la URL", () => {
+    expect(extractFirstUrl("https://test.com")).toBe("https://test.com");
+  });
+
+  it("extrae la URL cuando el texto tiene prefijo", () => {
+    expect(extractFirstUrl("fuente:hobbyconsolas https://mi-enlace.com")).toBe(
+      "https://mi-enlace.com"
+    );
+  });
+
+  it("extrae la URL cuando el texto tiene sufijo", () => {
+    expect(extractFirstUrl("https://mi-enlace.com fuente:hobbyconsolas")).toBe(
+      "https://mi-enlace.com"
+    );
+  });
+
+  it("extrae la primera URL si hay varias", () => {
+    expect(extractFirstUrl("texto https://uno.com y https://dos.com")).toBe(
+      "https://uno.com"
+    );
+  });
+
+  it("devuelve null si no hay URL", () => {
+    expect(extractFirstUrl("sin enlaces aquí")).toBeNull();
+  });
+
+  it("devuelve null si el input es null o vacío", () => {
+    expect(extractFirstUrl(null)).toBeNull();
+    expect(extractFirstUrl("")).toBeNull();
   });
 });

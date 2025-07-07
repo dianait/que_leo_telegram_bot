@@ -16,6 +16,7 @@ import {
   handleValidationError,
 } from "../utils/error-handler.js";
 import { checkRateLimit } from "./rate-limiter.js";
+import { extractFirstUrl } from "../utils/validators.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -99,7 +100,9 @@ export function registerTelegramHandlers(bot, supabase) {
         return;
       }
 
-      if (text && text.startsWith("http")) {
+      // Buscar la primera URL válida en el texto recibido
+      const urlExtraida = extractFirstUrl(text);
+      if (urlExtraida) {
         // Rate limiting: comprobar si el usuario puede guardar otro artículo
         const rate = checkRateLimit(user.user_id);
         if (!rate.allowed) {
@@ -112,7 +115,7 @@ export function registerTelegramHandlers(bot, supabase) {
         }
 
         // Validar URL antes de procesarla
-        if (!isValidUrl(text)) {
+        if (!isValidUrl(urlExtraida)) {
           const validationError = new Error("URL inválida");
           handleValidationError(validationError, chatId, bot, "url-validation");
           return;
@@ -127,11 +130,11 @@ export function registerTelegramHandlers(bot, supabase) {
             authors,
             topics,
             featuredimage,
-          } = await fetchAndExtractMetadata(text);
+          } = await fetchAndExtractMetadata(urlExtraida);
 
           // Preparar datos del artículo para el nuevo modelo
           const articleData = {
-            url: text,
+            url: urlExtraida,
             title,
             language,
             authors,
@@ -154,7 +157,7 @@ export function registerTelegramHandlers(bot, supabase) {
 
           // Construir mensaje de confirmación usando función separada
           const confirmMessage = buildConfirmationMessage({
-            url: text,
+            url: urlExtraida,
             title,
             description,
             language,

@@ -4,6 +4,7 @@ import {
   fetchAndExtractMetadata,
   isValidUrl,
 } from "../extractors/article-extractor.js";
+import { extractFirstUrl } from "../utils/validators.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,7 +22,7 @@ app.use(express.json());
 // Endpoint GET para extraer metadatos
 app.get("/api/extract-metadata", async (req, res) => {
   try {
-    const { url } = req.query;
+    let { url } = req.query;
 
     if (!url) {
       return res.status(400).json({
@@ -30,6 +31,9 @@ app.get("/api/extract-metadata", async (req, res) => {
         message: "Debes proporcionar una URL como parámetro de consulta",
       });
     }
+
+    // Extraer la primera URL válida del texto recibido
+    url = extractFirstUrl(url) || url;
 
     if (!isValidUrl(url)) {
       return res.status(400).json({
@@ -63,6 +67,8 @@ app.get("/api/extract-metadata", async (req, res) => {
     });
   }
 });
+
+export { app };
 
 export function startWebServer() {
   app.listen(PORT, () => {

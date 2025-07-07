@@ -8,6 +8,8 @@ import {
   isLinkMessage,
   isValidUserId,
 } from "../../src/utils/validators.js";
+import request from "supertest";
+import { app } from "../../src/web/server.js";
 
 describe("Integration Tests", () => {
   describe("Flujo completo de procesamiento de artículo", () => {
@@ -372,5 +374,33 @@ describe("Integration Tests", () => {
       expect(articleData.authors).toBeNull();
       expect(articleData.topics).toBeNull();
     });
+  });
+});
+
+describe("Endpoint /api/extract-metadata", () => {
+  test("extrae la URL correctamente de un texto con fuente y la procesa", async () => {
+    // Mock de fetchAndExtractMetadata para evitar llamadas reales
+    jest
+      .spyOn(
+        require("../../src/extractors/article-extractor.js"),
+        "fetchAndExtractMetadata"
+      )
+      .mockResolvedValue({
+        title: "Título de prueba",
+        description: "Descripción de prueba",
+        language: "es",
+        authors: ["Autor Prueba"],
+        topics: ["tema1", "tema2"],
+      });
+
+    const texto = "fuente:hobbyconsolas https://mi-enlace.com";
+    const response = await request(app)
+      .get("/api/extract-metadata")
+      .query({ url: texto });
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.url).toBe("https://mi-enlace.com");
+    expect(response.body.data.title).toBe("Título de prueba");
   });
 });
