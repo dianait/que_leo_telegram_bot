@@ -11,6 +11,3 @@ Un bot de Telegram que permite a los usuarios guardar artículos para leer despu
 - ✅ Validación de URLs y metadatos
 - 🔍 Extracción automática de metadatos de artículos
 
-## Contribuir
-
-Se aceptan Pull Requests. Por favor, asegúrate de que todos los tests pasen antes de enviar un PR.
