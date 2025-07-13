@@ -8,15 +8,27 @@ import {
 } from "../extractors/article-extractor.js";
 import { extractFirstUrl } from "../utils/validators.js";
 
+// Inicialización flexible de Google Cloud Vision
+import fs from "fs";
+import path from "path";
+
+let visionClient;
+const credentialsEnv =
+  process.env.GOOGLE_CLOUD_KEY_FILE ||
+  process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+if (credentialsEnv && credentialsEnv.trim().startsWith("{")) {
+  // Es un JSON, lo guardamos temporalmente
+  const tempPath = path.join("/tmp", "google-credentials.json");
+  fs.writeFileSync(tempPath, credentialsEnv);
+  visionClient = new ImageAnnotatorClient({ keyFilename: tempPath });
+} else {
+  // Es una ruta a un archivo
+  visionClient = new ImageAnnotatorClient({ keyFilename: credentialsEnv });
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Configurar Google Cloud Vision
-const visionClient = new ImageAnnotatorClient({
-  keyFilename:
-    process.env.GOOGLE_CLOUD_KEY_FILE ||
-    process.env.GOOGLE_APPLICATION_CREDENTIALS,
-});
 
 // Configurar multer para manejar archivos
 const upload = multer({
