@@ -8,6 +8,7 @@ import {
   insertUser,
   isUserAlreadyLinked,
   upsertArticleAndUserRelation,
+  findPreviousLinkings,
 } from "../db/service.js";
 import {
   handleError,
@@ -47,7 +48,7 @@ export function registerTelegramHandlers(bot, supabase) {
     });
 
     try {
-      // Verificar si el usuario ya está vinculado
+      // Verificar si el usuario ya está vinculado con este chat_id
       const isAlreadyLinked = await isUserAlreadyLinked(supabase, chatId);
       if (isAlreadyLinked) {
         bot.sendMessage(
@@ -57,7 +58,11 @@ export function registerTelegramHandlers(bot, supabase) {
         return;
       }
 
-      // Insertar nuevo usuario
+      // Verificar si hay vinculaciones anteriores con el mismo user_id
+      const previousLinkings = await findPreviousLinkings(supabase, userId);
+      const isReLinking = previousLinkings.length > 0;
+
+      // Insertar nuevo usuario (esto automáticamente limpiará vinculaciones anteriores)
       const userData = {
         user_id: userId,
         telegram_chat_id: chatId,
@@ -68,10 +73,17 @@ export function registerTelegramHandlers(bot, supabase) {
       if (!result.success) {
         handleDatabaseError(result.error, chatId, bot, "user-linking");
       } else {
-        bot.sendMessage(
-          chatId,
-          "✅ ¡Tu cuenta de Telegram ha sido vinculada correctamente!"
-        );
+        if (isReLinking) {
+          bot.sendMessage(
+            chatId,
+            "✅ ¡Tu cuenta de Telegram ha sido re-vinculada correctamente! Se han limpiado las vinculaciones anteriores."
+          );
+        } else {
+          bot.sendMessage(
+            chatId,
+            "✅ ¡Tu cuenta de Telegram ha sido vinculada correctamente!"
+          );
+        }
       }
     } catch (error) {
       handleError(error, chatId, bot, "user-linking");
@@ -155,44 +167,11 @@ export function registerTelegramHandlers(bot, supabase) {
             return;
           }
 
-          // Construir mensaje de confirmación usando función separada
-          const confirmMessage = buildConfirmationMessage({
-            url: urlExtraida,
-            title,
-            description,
-            language,
-            authors,
-            topics,
-            featuredimage,
-          });
-
-          // Log para debug
-          console.log("📊 Metadatos finales:", {
-            title,
-            description,
-            language,
-            authors,
-            topics,
-            featuredimage,
-          });
-
-          // Enviar mensaje con imagen si está disponible
-          if (featuredimage) {
-            try {
-              await bot.sendPhoto(chatId, featuredimage, {
-                caption: confirmMessage,
-                parse_mode: "HTML",
-              });
-            } catch (photoError) {
-              console.warn(
-                "Error enviando imagen, enviando solo texto:",
-                photoError.message
-              );
-              bot.sendMessage(chatId, confirmMessage);
-            }
-          } else {
-            bot.sendMessage(chatId, confirmMessage);
-          }
+          // Mensaje de confirmación simple
+          const confirmMessage = `✅ Guardado: ${title || "(sin título)"}`;
+          bot.sendMessage(chatId, confirmMessage);
+          // Fin del flujo simplificado
+          return;
         } catch (error) {
           // Manejar errores específicos de extracción de metadatos
           if (

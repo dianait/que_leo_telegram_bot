@@ -29,7 +29,63 @@ export async function findUserByChatId(supabase, chatId) {
 }
 
 /**
- * Inserta un nuevo usuario de Telegram
+ * Busca vinculaciones anteriores por user_id
+ * @param {SupabaseClient} supabase
+ * @param {string} userId
+ * @returns {Promise<Array>} Array de vinculaciones anteriores
+ */
+export async function findPreviousLinkings(supabase, userId) {
+  try {
+    const { data, error } = await supabase
+      .from("telegram_users")
+      .select("id, user_id, telegram_chat_id, telegram_username, linked_at")
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Error al buscar vinculaciones anteriores:", error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error(
+      "Error inesperado al buscar vinculaciones anteriores:",
+      error
+    );
+    return [];
+  }
+}
+
+/**
+ * Elimina vinculaciones obsoletas por user_id
+ * @param {SupabaseClient} supabase
+ * @param {string} userId
+ * @returns {Promise<Object>} Resultado de la operación
+ */
+export async function removeObsoleteLinkings(supabase, userId) {
+  try {
+    const { error } = await supabase
+      .from("telegram_users")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Error al eliminar vinculaciones obsoletas:", error);
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error(
+      "Error inesperado al eliminar vinculaciones obsoletas:",
+      error
+    );
+    return { success: false, error };
+  }
+}
+
+/**
+ * Inserta un nuevo usuario de Telegram (con limpieza de vinculaciones anteriores)
  * @param {SupabaseClient} supabase
  * @param {Object} userData
  * @param {string} userData.user_id
@@ -39,6 +95,20 @@ export async function findUserByChatId(supabase, chatId) {
  */
 export async function insertUser(supabase, userData) {
   try {
+    // Primero, eliminar vinculaciones anteriores del mismo user_id
+    const cleanupResult = await removeObsoleteLinkings(
+      supabase,
+      userData.user_id
+    );
+    if (!cleanupResult.success) {
+      console.warn(
+        "No se pudieron limpiar vinculaciones anteriores:",
+        cleanupResult.error
+      );
+      // Continuamos de todas formas, no es crítico
+    }
+
+    // Luego, insertar la nueva vinculación
     const { data, error } = await supabase
       .from("telegram_users")
       .insert([userData])
