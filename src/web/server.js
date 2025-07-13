@@ -107,6 +107,19 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
       });
     }
 
+    // Verificar si las credenciales están configuradas
+    if (
+      !process.env.GOOGLE_APPLICATION_CREDENTIALS &&
+      !process.env.GOOGLE_CLOUD_KEY_FILE
+    ) {
+      return res.status(503).json({
+        success: false,
+        error: "Credenciales de Google Cloud Vision no configuradas",
+        message:
+          "El servicio de OCR no está disponible. Contacta al administrador.",
+      });
+    }
+
     // Convertir la imagen a base64
     const imageBuffer = req.file.buffer;
     const base64Image = imageBuffer.toString("base64");
@@ -143,7 +156,7 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
       data: {
         text: extractedText,
         confidence: textAnnotations[0].confidence || null,
-        language: result.textAnnotations[0].locale || null,
+        language: textAnnotations[0].locale || null,
       },
       message: "Texto extraído exitosamente",
     });
@@ -156,6 +169,19 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
         success: false,
         error: "Servicio de OCR no disponible",
         message: "No se pudo conectar con el servicio de Google Cloud Vision",
+      });
+    }
+
+    // Manejar errores de credenciales
+    if (
+      error.message &&
+      error.message.includes("Could not load the default credentials")
+    ) {
+      return res.status(503).json({
+        success: false,
+        error: "Credenciales de Google Cloud Vision inválidas",
+        message:
+          "Las credenciales configuradas no son válidas. Verifica la configuración.",
       });
     }
 
@@ -177,6 +203,19 @@ app.post("/api/ocr-base64", async (req, res) => {
         success: false,
         error: "Imagen en base64 requerida",
         message: "Debes proporcionar una imagen en formato base64",
+      });
+    }
+
+    // Verificar si las credenciales están configuradas
+    if (
+      !process.env.GOOGLE_APPLICATION_CREDENTIALS &&
+      !process.env.GOOGLE_CLOUD_KEY_FILE
+    ) {
+      return res.status(503).json({
+        success: false,
+        error: "Credenciales de Google Cloud Vision no configuradas",
+        message:
+          "El servicio de OCR no está disponible. Contacta al administrador.",
       });
     }
 
@@ -212,7 +251,7 @@ app.post("/api/ocr-base64", async (req, res) => {
       data: {
         text: extractedText,
         confidence: textAnnotations[0].confidence || null,
-        language: result.textAnnotations[0].locale || null,
+        language: textAnnotations[0].locale || null,
       },
       message: "Texto extraído exitosamente",
     });
@@ -224,6 +263,19 @@ app.post("/api/ocr-base64", async (req, res) => {
         success: false,
         error: "Servicio de OCR no disponible",
         message: "No se pudo conectar con el servicio de Google Cloud Vision",
+      });
+    }
+
+    // Manejar errores de credenciales
+    if (
+      error.message &&
+      error.message.includes("Could not load the default credentials")
+    ) {
+      return res.status(503).json({
+        success: false,
+        error: "Credenciales de Google Cloud Vision inválidas",
+        message:
+          "Las credenciales configuradas no son válidas. Verifica la configuración.",
       });
     }
 
