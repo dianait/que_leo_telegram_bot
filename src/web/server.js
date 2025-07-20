@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import multer from "multer";
-import { ImageAnnotatorClient } from "@google-cloud/vision";
+import OpenAI from "openai";
 import {
   fetchAndExtractMetadata,
   isValidUrl,
@@ -108,8 +108,21 @@ app.get("/api/extract-metadata", async (req, res) => {
   }
 });
 
-// Endpoint POST para OCR con Google Cloud Vision
-app.post("/api/ocr", upload.single("image"), async (req, res) => {
+// Eliminar importaciones y lógica de Google Cloud Vision y endpoints /api/ocr y /api/ocr-base64
+import { ImageAnnotatorClient } from "@google-cloud/vision";
+
+let openai;
+const openaiApiKey = process.env.OPENAI_API_KEY;
+
+if (openaiApiKey) {
+  openai = new OpenAI({ apiKey: openaiApiKey });
+} else {
+  console.warn(
+    "OPENAI_API_KEY no configurada. El servicio de OpenAI Vision no estará disponible."
+  );
+}
+
+app.post("/api/openai-book-title", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -118,184 +131,37 @@ app.post("/api/ocr", upload.single("image"), async (req, res) => {
         message: "Debes enviar una imagen en el campo 'image'",
       });
     }
-
-    // Verificar si las credenciales están configuradas
-    if (
-      !process.env.GOOGLE_APPLICATION_CREDENTIALS &&
-      !process.env.GOOGLE_CLOUD_KEY_FILE
-    ) {
-      return res.status(503).json({
-        success: false,
-        error: "Credenciales de Google Cloud Vision no configuradas",
-        message:
-          "El servicio de OCR no está disponible. Contacta al administrador.",
-      });
-    }
-
-    // Convertir la imagen a base64
     const imageBuffer = req.file.buffer;
     const base64Image = imageBuffer.toString("base64");
-
-    // Configurar la solicitud para Google Cloud Vision
-    const request = {
-      image: {
-        content: base64Image,
-      },
-      features: [
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
         {
-          type: "TEXT_DETECTION",
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "¿Cuál es el título del libro en esta imagen? Solo responde el título.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:image/jpeg;base64,${base64Image}` },
+            },
+          ],
         },
       ],
-    };
-
-    // Realizar la solicitud a Google Cloud Vision
-    const [result] = await visionClient.annotateImage(request);
-    const textAnnotations = result.textAnnotations;
-
-    if (!textAnnotations || textAnnotations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No se detectó texto",
-        message: "No se encontró texto en la imagen proporcionada",
-      });
-    }
-
-    // Extraer el texto completo (el primer elemento contiene todo el texto)
-    const extractedText = textAnnotations[0].description;
-
+      max_tokens: 50,
+    });
     res.json({
       success: true,
-      data: {
-        text: extractedText,
-        confidence: textAnnotations[0].confidence || null,
-        language: textAnnotations[0].locale || null,
-      },
-      message: "Texto extraído exitosamente",
+      title: response.choices[0].message.content,
     });
   } catch (error) {
-    console.error("Error en OCR:", error);
-
-    // Manejar errores específicos de Google Cloud Vision
-    if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
-      return res.status(503).json({
-        success: false,
-        error: "Servicio de OCR no disponible",
-        message: "No se pudo conectar con el servicio de Google Cloud Vision",
-      });
-    }
-
-    // Manejar errores de credenciales
-    if (
-      error.message &&
-      error.message.includes("Could not load the default credentials")
-    ) {
-      return res.status(503).json({
-        success: false,
-        error: "Credenciales de Google Cloud Vision inválidas",
-        message:
-          "Las credenciales configuradas no son válidas. Verifica la configuración.",
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: "Error interno del servidor",
-      message: "Ocurrió un error al procesar la imagen",
-    });
-  }
-});
-
-// Endpoint alternativo para OCR con imagen en base64
-app.post("/api/ocr-base64", async (req, res) => {
-  try {
-    const { imageBase64 } = req.body;
-
-    if (!imageBase64) {
-      return res.status(400).json({
-        success: false,
-        error: "Imagen en base64 requerida",
-        message: "Debes proporcionar una imagen en formato base64",
-      });
-    }
-
-    // Verificar si las credenciales están configuradas
-    if (
-      !process.env.GOOGLE_APPLICATION_CREDENTIALS &&
-      !process.env.GOOGLE_CLOUD_KEY_FILE
-    ) {
-      return res.status(503).json({
-        success: false,
-        error: "Credenciales de Google Cloud Vision no configuradas",
-        message:
-          "El servicio de OCR no está disponible. Contacta al administrador.",
-      });
-    }
-
-    // Configurar la solicitud para Google Cloud Vision
-    const request = {
-      image: {
-        content: imageBase64,
-      },
-      features: [
-        {
-          type: "TEXT_DETECTION",
-        },
-      ],
-    };
-
-    // Realizar la solicitud a Google Cloud Vision
-    const [result] = await visionClient.annotateImage(request);
-    const textAnnotations = result.textAnnotations;
-
-    if (!textAnnotations || textAnnotations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "No se detectó texto",
-        message: "No se encontró texto en la imagen proporcionada",
-      });
-    }
-
-    // Extraer el texto completo
-    const extractedText = textAnnotations[0].description;
-
-    res.json({
-      success: true,
-      data: {
-        text: extractedText,
-        confidence: textAnnotations[0].confidence || null,
-        language: textAnnotations[0].locale || null,
-      },
-      message: "Texto extraído exitosamente",
-    });
-  } catch (error) {
-    console.error("Error en OCR base64:", error);
-
-    if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
-      return res.status(503).json({
-        success: false,
-        error: "Servicio de OCR no disponible",
-        message: "No se pudo conectar con el servicio de Google Cloud Vision",
-      });
-    }
-
-    // Manejar errores de credenciales
-    if (
-      error.message &&
-      error.message.includes("Could not load the default credentials")
-    ) {
-      return res.status(503).json({
-        success: false,
-        error: "Credenciales de Google Cloud Vision inválidas",
-        message:
-          "Las credenciales configuradas no son válidas. Verifica la configuración.",
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      error: "Error interno del servidor",
-      message: "Ocurrió un error al procesar la imagen",
-    });
+    console.error(
+      "Error llamando a OpenAI Vision:",
+      error.response?.data || error.message
+    );
+    res.status(500).json({ error: "Error llamando a OpenAI Vision" });
   }
 });
 
@@ -306,7 +172,6 @@ export function startWebServer() {
     console.log(`🌐 Servidor web iniciado en puerto ${PORT}`);
     console.log(`📡 Endpoints disponibles:`);
     console.log(`   GET  /api/extract-metadata?url=<URL>`);
-    console.log(`   POST /api/ocr (con archivo de imagen)`);
-    console.log(`   POST /api/ocr-base64 (con imagen en base64)`);
+    console.log(`   POST /api/openai-book-title (con archivo de imagen)`);
   });
 }

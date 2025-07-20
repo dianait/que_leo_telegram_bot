@@ -8,6 +8,20 @@ import {
   isLinkMessage,
   isValidUserId,
 } from "../../src/utils/validators.js";
+import request from "supertest";
+import fs from "fs";
+import path from "path";
+import { startWebServer } from "../../src/web/server.js";
+
+let server;
+beforeAll((done) => {
+  server = startWebServer();
+  setTimeout(done, 500); // Espera breve para asegurar que el server arranca
+});
+afterAll((done) => {
+  if (server && server.close) server.close(done);
+  else done();
+});
 
 describe("Integration Tests", () => {
   describe("Flujo completo de procesamiento de artículo", () => {
