@@ -165,8 +165,8 @@ app.post("/api/openai-book-title", upload.single("image"), async (req, res) => {
   }
 });
 
-// Endpoint para obtener el primer resultado de Amazon
-app.get("/api/amazon-first-result", async (req, res) => {
+// Endpoint para obtener una búsqueda optimizada de Amazon
+app.get("/api/amazon-search", async (req, res) => {
   try {
     const { title } = req.query;
 
@@ -178,42 +178,29 @@ app.get("/api/amazon-first-result", async (req, res) => {
       });
     }
 
-    // Usar OpenAI para encontrar el enlace directo del libro en Amazon
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "user",
-          content: `Busca el libro "${title}" en Amazon España y devuelve SOLO la URL directa del primer resultado. Si no encuentras el libro, devuelve "NO_ENCONTRADO".`,
-        },
-      ],
-      max_tokens: 200,
-    });
+    // Limpiar y optimizar el título para la búsqueda
+    const cleanTitle = title
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
-    const result = response.choices[0].message.content.trim();
-
-    if (result === "NO_ENCONTRADO" || !result.includes("amazon.es")) {
-      return res.json({
-        success: false,
-        message: "No se encontró el libro en Amazon España",
-        searchUrl: `https://www.amazon.es/s?k=${encodeURIComponent(
-          title
-        )}&i=stripbooks`,
-      });
-    }
+    // Crear una URL de búsqueda optimizada para libros
+    const searchUrl = `https://www.amazon.es/s?k=${encodeURIComponent(
+      cleanTitle
+    )}&i=stripbooks&ref=sr_pg_1`;
 
     res.json({
       success: true,
-      productUrl: result,
-      title: title,
+      searchUrl: searchUrl,
+      title: cleanTitle,
     });
   } catch (error) {
-    console.error("Error buscando en Amazon:", error);
+    console.error("Error creando URL de búsqueda:", error);
     res.status(500).json({
       success: false,
-      error: "Error buscando el libro en Amazon",
+      error: "Error creando URL de búsqueda",
       searchUrl: `https://www.amazon.es/s?k=${encodeURIComponent(
-        req.query.title || ""
+        title || ""
       )}&i=stripbooks`,
     });
   }
@@ -227,6 +214,6 @@ export function startWebServer() {
     console.log(`📡 Endpoints disponibles:`);
     console.log(`   GET  /api/extract-metadata?url=<URL>`);
     console.log(`   POST /api/openai-book-title (con archivo de imagen)`);
-    console.log(`   GET  /api/amazon-first-result?title=<TÍTULO>`);
+    console.log(`   GET  /api/amazon-search?title=<TÍTULO>`);
   });
 }
