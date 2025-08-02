@@ -165,6 +165,60 @@ app.post("/api/openai-book-title", upload.single("image"), async (req, res) => {
   }
 });
 
+// Endpoint para obtener el primer resultado de Amazon
+app.get("/api/amazon-first-result", async (req, res) => {
+  try {
+    const { title } = req.query;
+
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        error: "Título requerido",
+        message: "Debes proporcionar un título como parámetro de consulta",
+      });
+    }
+
+    // Usar OpenAI para encontrar el enlace directo del libro en Amazon
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: `Busca el libro "${title}" en Amazon España y devuelve SOLO la URL directa del primer resultado. Si no encuentras el libro, devuelve "NO_ENCONTRADO".`,
+        },
+      ],
+      max_tokens: 200,
+    });
+
+    const result = response.choices[0].message.content.trim();
+
+    if (result === "NO_ENCONTRADO" || !result.includes("amazon.es")) {
+      return res.json({
+        success: false,
+        message: "No se encontró el libro en Amazon España",
+        searchUrl: `https://www.amazon.es/s?k=${encodeURIComponent(
+          title
+        )}&i=stripbooks`,
+      });
+    }
+
+    res.json({
+      success: true,
+      productUrl: result,
+      title: title,
+    });
+  } catch (error) {
+    console.error("Error buscando en Amazon:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error buscando el libro en Amazon",
+      searchUrl: `https://www.amazon.es/s?k=${encodeURIComponent(
+        req.query.title || ""
+      )}&i=stripbooks`,
+    });
+  }
+});
+
 export { app };
 
 export function startWebServer() {
@@ -173,5 +227,6 @@ export function startWebServer() {
     console.log(`📡 Endpoints disponibles:`);
     console.log(`   GET  /api/extract-metadata?url=<URL>`);
     console.log(`   POST /api/openai-book-title (con archivo de imagen)`);
+    console.log(`   GET  /api/amazon-first-result?title=<TÍTULO>`);
   });
 }
