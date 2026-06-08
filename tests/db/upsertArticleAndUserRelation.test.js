@@ -1,26 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
 import {
   upsertArticleAndUserRelation,
   findPreviousLinkings,
   removeObsoleteLinkings,
   insertUser,
 } from "../../src/db/service.js";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-const hasSupabaseEnv =
-  process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY;
-const describeIfSupabase = hasSupabaseEnv ? describe : describe.skip;
+import {
+  createSupabaseTestClient,
+  describeIfSupabase,
+} from "../helpers/supabase-env.js";
 
 describeIfSupabase("upsertArticleAndUserRelation", () => {
   let supabase;
 
   beforeAll(() => {
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY
-    );
+    supabase = createSupabaseTestClient();
   });
 
   const testUserId = "9305ee7a-146e-4029-9693-60a9f0b2347e";
@@ -39,7 +32,7 @@ describeIfSupabase("upsertArticleAndUserRelation", () => {
     await supabase.from("articles").delete().eq("url", testUrl);
   });
 
-  test("inserta un artículo nuevo y la relación usuario-artículo", async () => {
+  test("inserts a new article and user relation", async () => {
     const result = await upsertArticleAndUserRelation(
       supabase,
       articleData,
@@ -50,7 +43,7 @@ describeIfSupabase("upsertArticleAndUserRelation", () => {
     expect(result.relation.user_id).toBe(testUserId);
   });
 
-  test("actualiza el artículo si ya existe y mantiene la relación", async () => {
+  test("updates an existing article and keeps the relation", async () => {
     const updatedData = { ...articleData, title: "Título Actualizado" };
     const result = await upsertArticleAndUserRelation(
       supabase,
@@ -63,14 +56,11 @@ describeIfSupabase("upsertArticleAndUserRelation", () => {
   });
 });
 
-describeIfSupabase("Gestión de vinculaciones de usuarios", () => {
+describeIfSupabase("Telegram user linking", () => {
   let supabase;
 
   beforeAll(() => {
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY
-    );
+    supabase = createSupabaseTestClient();
   });
 
   const testUserId = "9305ee7a-146e-4029-9693-60a9f0b2347e";
@@ -81,7 +71,7 @@ describeIfSupabase("Gestión de vinculaciones de usuarios", () => {
     await supabase.from("telegram_users").delete().eq("user_id", testUserId);
   });
 
-  test("encuentra vinculaciones anteriores por user_id", async () => {
+  test("finds previous linkings by user_id", async () => {
     const userData1 = {
       user_id: testUserId,
       telegram_chat_id: testChatId1,
@@ -94,7 +84,7 @@ describeIfSupabase("Gestión de vinculaciones de usuarios", () => {
     expect(previousLinkings[0].user_id).toBe(testUserId);
   });
 
-  test("elimina vinculaciones obsoletas y crea nueva", async () => {
+  test("replaces obsolete linkings when relinking", async () => {
     const userData2 = {
       user_id: testUserId,
       telegram_chat_id: testChatId2,
@@ -109,7 +99,7 @@ describeIfSupabase("Gestión de vinculaciones de usuarios", () => {
     expect(remainingLinkings[0].telegram_chat_id).toBe(testChatId2);
   });
 
-  test("elimina vinculaciones obsoletas manualmente", async () => {
+  test("removes obsolete linkings manually", async () => {
     const userData = {
       user_id: testUserId,
       telegram_chat_id: testChatId1,
