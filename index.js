@@ -18,9 +18,28 @@ if (!TELEGRAM_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// Iniciar bot de Telegram
 console.log("🚀 Bot de Telegram iniciado");
 registerTelegramHandlers(bot, supabase);
 
-// Iniciar servidor web
-startWebServer();
+const server = startWebServer();
+
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+function shutdown(signal) {
+  console.log(`\n${signal} recibido, cerrando servicios...`);
+
+  bot.stopPolling();
+
+  server.close(() => {
+    console.log("Servidor web cerrado correctamente");
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error("Timeout de cierre alcanzado, forzando salida");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
