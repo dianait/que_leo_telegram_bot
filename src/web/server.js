@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { logger } from "../utils/logger.js";
 import {
   fetchAndExtractMetadata,
   isValidUrl,
@@ -46,8 +47,14 @@ app.use(express.json({ limit: "1mb" }));
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
-    console.log(
-      `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`
+    logger.info(
+      {
+        method: req.method,
+        url: req.originalUrl,
+        statusCode: res.statusCode,
+        durationMs: Date.now() - start,
+      },
+      "HTTP request completed"
     );
   });
   next();
@@ -108,7 +115,7 @@ app.use((_req, res) => {
 });
 
 app.use((err, _req, res, _next) => {
-  console.error("Error no manejado:", err);
+  logger.error({ err }, "Unhandled HTTP error");
   res.status(err.status || 500).json({
     success: false,
     error: "Error interno del servidor",
