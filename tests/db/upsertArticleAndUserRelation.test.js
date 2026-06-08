@@ -4,16 +4,13 @@ import {
   removeObsoleteLinkings,
   insertUser,
 } from "../../src/db/service.js";
-import {
-  createSupabaseTestClient,
-  describeIfSupabase,
-} from "../helpers/supabase-env.js";
+import { createInMemorySupabase } from "../helpers/in-memory-supabase.js";
 
-describeIfSupabase("upsertArticleAndUserRelation", () => {
+describe("upsertArticleAndUserRelation", () => {
   let supabase;
 
-  beforeAll(() => {
-    supabase = createSupabaseTestClient();
+  beforeEach(() => {
+    supabase = createInMemorySupabase();
   });
 
   const testUserId = "9305ee7a-146e-4029-9693-60a9f0b2347e";
@@ -27,11 +24,6 @@ describeIfSupabase("upsertArticleAndUserRelation", () => {
     featured_image: "https://test.com/image.png",
   };
 
-  afterAll(async () => {
-    await supabase.from("user_articles").delete().eq("user_id", testUserId);
-    await supabase.from("articles").delete().eq("url", testUrl);
-  });
-
   test("inserts a new article and user relation", async () => {
     const result = await upsertArticleAndUserRelation(
       supabase,
@@ -44,32 +36,31 @@ describeIfSupabase("upsertArticleAndUserRelation", () => {
   });
 
   test("updates an existing article and keeps the relation", async () => {
+    await upsertArticleAndUserRelation(supabase, articleData, testUserId);
+
     const updatedData = { ...articleData, title: "Título Actualizado" };
     const result = await upsertArticleAndUserRelation(
       supabase,
       updatedData,
       testUserId
     );
+
     expect(result.success).toBe(true);
     expect(result.article.title).toBe("Título Actualizado");
     expect(result.relation.user_id).toBe(testUserId);
   });
 });
 
-describeIfSupabase("Telegram user linking", () => {
+describe("Telegram user linking", () => {
   let supabase;
 
-  beforeAll(() => {
-    supabase = createSupabaseTestClient();
+  beforeEach(() => {
+    supabase = createInMemorySupabase();
   });
 
   const testUserId = "9305ee7a-146e-4029-9693-60a9f0b2347e";
   const testChatId1 = 123456789;
   const testChatId2 = 987654321;
-
-  afterAll(async () => {
-    await supabase.from("telegram_users").delete().eq("user_id", testUserId);
-  });
 
   test("finds previous linkings by user_id", async () => {
     const userData1 = {
@@ -85,13 +76,17 @@ describeIfSupabase("Telegram user linking", () => {
   });
 
   test("replaces obsolete linkings when relinking", async () => {
-    const userData2 = {
+    await insertUser(supabase, {
+      user_id: testUserId,
+      telegram_chat_id: testChatId1,
+      telegram_username: "testuser1",
+    });
+
+    const result = await insertUser(supabase, {
       user_id: testUserId,
       telegram_chat_id: testChatId2,
       telegram_username: "testuser2",
-    };
-
-    const result = await insertUser(supabase, userData2);
+    });
     expect(result.success).toBe(true);
 
     const remainingLinkings = await findPreviousLinkings(supabase, testUserId);
@@ -100,12 +95,11 @@ describeIfSupabase("Telegram user linking", () => {
   });
 
   test("removes obsolete linkings manually", async () => {
-    const userData = {
+    await insertUser(supabase, {
       user_id: testUserId,
       telegram_chat_id: testChatId1,
       telegram_username: "testuser",
-    };
-    await insertUser(supabase, userData);
+    });
 
     const result = await removeObsoleteLinkings(supabase, testUserId);
     expect(result.success).toBe(true);
