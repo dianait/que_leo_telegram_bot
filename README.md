@@ -7,7 +7,35 @@ Un bot de Telegram que permite a los usuarios guardar artículos para leer despu
 ## Características
 
 - 🛡️ Rate limiting (5 artículos por minuto por usuario)
-- 🧪 6 tests automatizados
 - ✅ Validación de URLs y metadatos
 - 🔍 Extracción automática de metadatos de artículos
+- 🌐 API HTTP para la app web (`/api/extract-metadata`)
 
+## Inicio rápido
+
+Crea un archivo `.env` en la raíz del proyecto:
+
+```env
+TELEGRAM_TOKEN=
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+```
+
+Opcionales: `PORT` (por defecto 3000), `ALLOWED_ORIGINS`, `LOG_LEVEL`.
+
+```bash
+npm install
+npm start
+```
+
+El bot usa polling de Telegram, así que no necesitas abrir puertos si solo lo usas desde Telegram.
+
+## Tests
+
+```bash
+npm test
+```
+
+## Documentación
+
+- [Instalación en Windows (24/7)](docs/windows-setup.md) — PC siempre encendido con PM2
