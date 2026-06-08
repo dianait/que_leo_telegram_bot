@@ -36,6 +36,3 @@ El bot usa polling de Telegram, así que no necesitas abrir puertos si solo lo u
 npm test
 ```
 
-## Documentación
-
-- [Instalación en Windows (24/7)](docs/windows-setup.md) — PC siempre encendido con PM2
