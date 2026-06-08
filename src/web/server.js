@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { logger } from "../utils/logger.js";
 import {
   fetchAndExtractMetadata,
@@ -44,6 +45,18 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 
+const metadataRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Too many requests",
+    message: "Rate limit exceeded. Try again later.",
+  },
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -64,7 +77,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-app.get("/api/extract-metadata", async (req, res, next) => {
+app.get("/api/extract-metadata", metadataRateLimiter, async (req, res, next) => {
   try {
     let { url } = req.query;
 
