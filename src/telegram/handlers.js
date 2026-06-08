@@ -1,7 +1,6 @@
 import {
   fetchAndExtractMetadata,
   isValidUrl,
-  buildConfirmationMessage,
 } from "../extractors/article-extractor.js";
 import {
   findUserByChatId,

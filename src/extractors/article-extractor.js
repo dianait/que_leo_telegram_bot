@@ -1,8 +1,5 @@
 import { isValidUrl as baseIsValidUrl } from "../utils/validators.js";
-import {
-  extractMetadataBasic,
-  translateLanguage,
-} from "./metadata-extractor.js";
+import { extractMetadataBasic } from "./metadata-extractor.js";
 
 /**
  * Hace fetch a una URL y extrae metadatos básicos del HTML
@@ -34,57 +31,4 @@ export async function fetchAndExtractMetadata(url) {
  */
 export function isValidUrl(url) {
   return baseIsValidUrl(url);
-}
-
-/**
- * Construye el mensaje de confirmación para Telegram
- * @param {Object} params
- * @param {string} params.url
- * @param {string|null} params.title
- * @param {string|null} params.description
- * @param {string|null} params.language
- * @param {Array<string>} params.authors
- * @param {Array<string>} params.topics
- * @param {string|null} params.featuredimage
- * @returns {string}
- */
-export function buildConfirmationMessage({
-  url,
-  title,
-  description,
-  language,
-  authors,
-  topics,
-  featuredimage,
-}) {
-  let message = `✅ ¡Artículo guardado!\n🔗 URL: ${url}`;
-
-  if (title) {
-    message += `\n📝 Título: ${title}`;
-  }
-
-  if (description) {
-    message += `\n📄 Descripción: ${description.substring(0, 200)}${
-      description.length > 200 ? "..." : ""
-    }`;
-  }
-
-  const languageName = translateLanguage(language);
-  if (languageName) {
-    message += `\n🌍 Idioma: ${languageName}`;
-  }
-
-  if (authors && authors.length > 0) {
-    message += `\n👥 Autor(es): ${authors.join(", ")}`;
-  }
-
-  if (topics && topics.length > 0) {
-    message += `\n🏷️ Temas: ${topics.join(", ")}`;
-  }
-
-  if (featuredimage) {
-    message += `\n🖼️ Imagen destacada disponible`;
-  }
-
-  return message;
 }
