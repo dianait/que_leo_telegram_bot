@@ -2,6 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { registerTelegramHandlers } from "./src/telegram/handlers.js";
+import { cleanupRateLimiter } from "./src/telegram/rate-limiter.js";
 import { startWebServer } from "./src/web/server.js";
 dotenv.config();
 
@@ -24,10 +25,16 @@ registerTelegramHandlers(bot, supabase);
 const server = startWebServer();
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+const RATE_LIMITER_CLEANUP_MS = 5 * 60 * 1000;
+const rateLimiterCleanupInterval = setInterval(
+  cleanupRateLimiter,
+  RATE_LIMITER_CLEANUP_MS
+);
 
 function shutdown(signal) {
   console.log(`\n${signal} recibido, cerrando servicios...`);
 
+  clearInterval(rateLimiterCleanupInterval);
   bot.stopPolling();
 
   server.close(() => {
