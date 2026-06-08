@@ -22,10 +22,20 @@ const DEFAULT_ORIGINS = [
   "http://127.0.0.1:8080",
 ];
 
+function getAllowedOrigins() {
+  if (!process.env.ALLOWED_ORIGINS) {
+    return DEFAULT_ORIGINS;
+  }
+
+  return process.env.ALLOWED_ORIGINS.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(",") ?? DEFAULT_ORIGINS,
+    origin: getAllowedOrigins(),
     methods: ["GET", "OPTIONS"],
     credentials: false,
     allowedHeaders: ["Content-Type", "Authorization"],
