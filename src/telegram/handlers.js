@@ -17,6 +17,7 @@ import {
 } from "../utils/error-handler.js";
 import { checkRateLimit } from "./rate-limiter.js";
 import { extractFirstUrl } from "../utils/validators.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -38,13 +39,10 @@ export function registerTelegramHandlers(bot, supabase) {
       return;
     }
 
-    // Log de depuración para ver los valores enviados al insert
-    console.log("Insertando en telegram_users:", {
-      user_id: userId,
-      telegram_chat_id: chatId,
-      telegram_username: username,
-      linked_at: new Date().toISOString(),
-    });
+    logger.debug(
+      { user_id: userId, telegram_chat_id: chatId, telegram_username: username },
+      "Linking Telegram user"
+    );
 
     try {
       // Verificar si el usuario ya está vinculado con este chat_id
@@ -94,8 +92,7 @@ export function registerTelegramHandlers(bot, supabase) {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Log para depuración: mostrar el chatId recibido
-    console.log("Buscando vinculación para chatId:", chatId);
+    logger.debug({ chatId }, "Processing incoming message");
 
     // Ignora el mensaje /start con user_id (ya gestionado arriba)
     if (text && text.startsWith("/start")) return;
