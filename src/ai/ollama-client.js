@@ -1,3 +1,4 @@
+import { formatArticleContextForAi } from "../extractors/article-signals.js";
 import { logger } from "../utils/logger.js";
 
 const DEFAULT_BASE_URL = "http://localhost:11434";
@@ -74,29 +75,32 @@ function buildSystemPrompt() {
 Preferencias del usuario:
 ${preferences}
 
+Criterios para VALORACIÓN y RAZÓN (obligatorio):
+- Valora solo el CONTENIDO: profundidad, calidad técnica, claridad, originalidad y encaje con los temas que interesan al usuario.
+- La RAZÓN debe explicar por qué el contenido encaja o no con esos gustos (tema, nivel, profundidad, estilo).
+- NO uses como motivo de la nota: membresías, paywalls, Medium Partner, suscripciones, acceso de pago, si el texto está truncado o si no pudiste leerlo entero.
+- Ignora barreras de acceso; asume que el usuario puede leer el artículo si le interesa.
+- Usa los metadatos (fuente, autor, longitud, profundidad) como contexto para la valoración, no como excusa.
+
 Responde SIEMPRE en español con este formato exacto:
 RESUMEN:
 (máximo 2-3 frases cortas; unas 80 palabras en total; ve al grano)
 
 VALORACIÓN: X/10
 RAZÓN:
-(una sola línea breve, máximo 15 palabras, explicando si encaja con los gustos del usuario)`;
+(una sola línea breve, máximo 15 palabras; solo calidad y encaje temático con las preferencias del usuario)`;
 }
 
 /**
- * @param {{ title: string|null, description: string|null, text: string, url: string }} article
+ * @param {{ title: string|null, description: string|null, text: string, url: string, authors?: string[], publishedAt?: string|null }} article
  * @returns {Promise<string>}
  */
-export async function summarizeAndRateArticle({ title, description, text, url }) {
+export async function summarizeAndRateArticle(article) {
   const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL;
   const model = process.env.OLLAMA_MODEL;
   const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 
-  const userContent = `URL: ${url}
-Título: ${title || "(sin título)"}
-Descripción: ${description || "(sin descripción)"}
-Contenido:
-${text || "(sin texto extraído — usa título y descripción para el resumen)"}`;
+  const userContent = formatArticleContextForAi(article);
 
   const response = await fetch(`${baseUrl}/api/chat`, {
     method: "POST",
@@ -129,28 +133,67 @@ ${text || "(sin texto extraído — usa título y descripción para el resumen)"
 }
 
 const OLLAMA_RESPONSE_PATTERN =
-  /RESUMEN:\s*([\s\S]*?)\n\nVALORACIÓN:\s*(\d{1,2})\s*\/\s*10\s*\nRAZÓN:\s*([\s\S]*)/i;
+  /RESUMEN:\s*([\s\S]*?)\n+\s*VALORACI[ÓO]N:\s*(\d{1,2})\s*\/\s*10\s*\n+\s*RAZ[ÓO]N:\s*([\s\S]*)/i;
+
+/**
+ * @param {string} raw
+ * @returns {string}
+ */
+function normalizeOllamaRaw(raw) {
+  return raw.replace(/\*\*/g, "").trim();
+}
+
+/**
+ * @param {number} rating
+ * @returns {boolean}
+ */
+function isValidRating(rating) {
+  return Number.isInteger(rating) && rating >= 1 && rating <= 10;
+}
+
+/**
+ * @param {string} normalized
+ * @returns {{ summary: string|null, rating: number|null, reason: string|null }}
+ */
+function parseOllamaResponseFallback(normalized) {
+  const summaryMatch = normalized.match(
+    /RESUMEN:\s*([\s\S]*?)(?=\n\s*VALORACI[ÓO]N:|\s*$)/i
+  );
+  const ratingMatch = normalized.match(/VALORACI[ÓO]N:\s*(\d{1,2})\s*\/\s*10/i);
+  const reasonMatch = normalized.match(/RAZ[ÓO]N:\s*([\s\S]*)/i);
+
+  const summary = truncateText(summaryMatch?.[1]?.trim(), getSummaryMaxChars());
+  const rating = ratingMatch ? Number.parseInt(ratingMatch[1], 10) : null;
+  const reason = truncateText(reasonMatch?.[1]?.trim(), getReasonMaxChars());
+
+  return {
+    summary,
+    rating: isValidRating(rating) ? rating : null,
+    reason,
+  };
+}
 
 /**
  * @param {string} raw
  * @returns {{ summary: string|null, rating: number|null, reason: string|null }}
  */
 export function parseOllamaResponse(raw) {
-  const match = raw.match(OLLAMA_RESPONSE_PATTERN);
+  const normalized = normalizeOllamaRaw(raw);
+  const match = normalized.match(OLLAMA_RESPONSE_PATTERN);
 
-  if (!match) {
-    return { summary: null, rating: null, reason: null };
+  if (match) {
+    const summary = truncateText(match[1], getSummaryMaxChars());
+    const rating = Number.parseInt(match[2], 10);
+    const reason = truncateText(match[3], getReasonMaxChars());
+
+    if (!isValidRating(rating)) {
+      return { summary, rating: null, reason };
+    }
+
+    return { summary, rating, reason };
   }
 
-  const summary = truncateText(match[1], getSummaryMaxChars());
-  const rating = Number.parseInt(match[2], 10);
-  const reason = truncateText(match[3], getReasonMaxChars());
-
-  if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
-    return { summary, rating: null, reason };
-  }
-
-  return { summary, rating, reason };
+  return parseOllamaResponseFallback(normalized);
 }
 
 /**

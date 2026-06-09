@@ -212,6 +212,7 @@ export function extractMetadataBasic(html, baseUrl = null) {
       authors: [],
       topics: [],
       featuredimage: null,
+      publishedAt: null,
     };
   }
 
@@ -232,10 +233,16 @@ export function extractMetadataBasic(html, baseUrl = null) {
   const language = langMatch ? langMatch[1] : null;
 
   // Extraer autor
-  const authorMatch = html.match(
-    /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["']/i
-  );
-  const authors = authorMatch ? [decodeHtmlEntities(authorMatch[1])] : [];
+  const authorFromMeta =
+    extractMetaContent(html, { property: "article:author" }) ??
+    extractMetaContent(html, { name: "author" }) ??
+    extractMetaContent(html, { name: "twitter:creator" });
+  const authors = authorFromMeta ? [decodeHtmlEntities(authorFromMeta)] : [];
+
+  const publishedAt =
+    extractMetaContent(html, { property: "article:published_time" }) ??
+    extractMetaContent(html, { property: "article:modified_time" }) ??
+    extractMetaContent(html, { name: "date" });
 
   // Extraer keywords
   const keywordsMatch = html.match(
@@ -258,6 +265,7 @@ export function extractMetadataBasic(html, baseUrl = null) {
     authors,
     topics,
     featuredimage,
+    publishedAt,
   };
 }
 

@@ -86,6 +86,31 @@ describe("Ollama Client", () => {
       expect(body.stream).toBe(false);
       expect(body.messages[0].role).toBe("system");
       expect(body.messages[1].content).toContain("https://example.com/post");
+      expect(body.messages[1].content).toContain("Metadatos del artículo:");
+      expect(body.messages[1].content).toContain("Fuente: example.com");
+    });
+
+    test("pide valorar por contenido y no por paywalls o membresías", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          message: { content: "RESUMEN:\nOk.\n\nVALORACIÓN: 7/10\nRAZÓN:\nProfundo." },
+        }),
+      });
+
+      await summarizeAndRateArticle({
+        title: "Artículo",
+        description: null,
+        text: "Contenido",
+        url: "https://medium.com/post",
+      });
+
+      const body = JSON.parse(fetch.mock.calls[0][1].body);
+      const systemPrompt = body.messages[0].content;
+
+      expect(systemPrompt).toContain("NO uses como motivo");
+      expect(systemPrompt).toContain("membresías");
+      expect(systemPrompt).toContain("solo calidad y encaje temático");
     });
 
     test("lanza error si Ollama responde con error HTTP", async () => {
@@ -165,6 +190,28 @@ describe("Ollama Client", () => {
       expect(parsed.summary).toBe("Ok.");
       expect(parsed.rating).toBeNull();
       expect(parsed.reason).toBe("Demasiado alto.");
+    });
+
+    test("tolera un solo salto de línea entre secciones", () => {
+      const parsed = parseOllamaResponse(
+        "RESUMEN:\nMuy interesante.\nVALORACIÓN: 8/10\nRAZÓN:\nEncaja con tus gustos."
+      );
+
+      expect(parsed).toEqual({
+        summary: "Muy interesante.",
+        rating: 8,
+        reason: "Encaja con tus gustos.",
+      });
+    });
+
+    test("tolera markdown y VALORACION sin tilde", () => {
+      const parsed = parseOllamaResponse(
+        "**RESUMEN:**\nBuen artículo.\n**VALORACION:** 7/10\n**RAZON:**\nÚtil."
+      );
+
+      expect(parsed.summary).toBe("Buen artículo.");
+      expect(parsed.rating).toBe(7);
+      expect(parsed.reason).toBe("Útil.");
     });
 
     test("trunca resúmenes demasiado largos", () => {

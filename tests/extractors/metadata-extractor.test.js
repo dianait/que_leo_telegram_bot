@@ -26,6 +26,7 @@ describe("Metadata Extractor", () => {
         authors: ["María García"],
         topics: ["básico", "html", "test"],
         featuredimage: null,
+        publishedAt: null,
       });
     });
 
@@ -197,6 +198,7 @@ describe("Metadata Extractor", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
 

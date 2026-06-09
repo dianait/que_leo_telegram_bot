@@ -207,6 +207,7 @@ describe("Integration Tests", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
 

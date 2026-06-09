@@ -39,13 +39,8 @@ export async function sendArticleSummary(bot, chatId, url, options = {}) {
   }
 
   try {
-    const { title, description, text } = await deps.fetchArticleContent(url);
-    const rawSummary = await deps.summarizeAndRateArticle({
-      title,
-      description,
-      text,
-      url,
-    });
+    const article = await deps.fetchArticleContent(url);
+    const rawSummary = await deps.summarizeAndRateArticle(article);
 
     const parsed = deps.parseOllamaResponse(rawSummary);
     const summaryText =

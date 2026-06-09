@@ -113,6 +113,31 @@ describe("Article Extractor", () => {
       authors: [],
       topics: [],
       featuredimage: null,
+      publishedAt: null,
     });
+  });
+
+  test("extrae fecha de publicación y autor", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      url: "https://dianait.blog/post",
+      text: () =>
+        Promise.resolve(`
+        <html>
+          <head>
+            <title>Post</title>
+            <meta property="article:published_time" content="2026-05-08T09:00:00.000Z"/>
+            <meta property="article:author" content="Diana"/>
+          </head>
+          <body><p>Contenido</p></body>
+        </html>
+      `),
+    });
+
+    const content = await fetchArticleContent("https://dianait.blog/post");
+
+    expect(content.publishedAt).toBe("2026-05-08T09:00:00.000Z");
+    expect(content.authors).toEqual(["Diana"]);
+    expect(content.url).toBe("https://dianait.blog/post");
   });
 });

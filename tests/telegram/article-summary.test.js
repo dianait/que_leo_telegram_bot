@@ -51,6 +51,9 @@ describe("sendArticleSummary", () => {
       title: "Artículo de prueba",
       description: "Descripción corta",
       text: "Contenido largo del artículo",
+      authors: ["Autor"],
+      publishedAt: "2026-01-01T00:00:00.000Z",
+      url: "https://example.com/post",
     });
     summarizeAndRateArticle.mockResolvedValue(
       "RESUMEN:\nMuy interesante.\n\nVALORACIÓN: 9/10\nRAZÓN:\nEncaja con tus gustos."
@@ -74,6 +77,8 @@ describe("sendArticleSummary", () => {
       title: "Artículo de prueba",
       description: "Descripción corta",
       text: "Contenido largo del artículo",
+      authors: ["Autor"],
+      publishedAt: "2026-01-01T00:00:00.000Z",
       url: "https://example.com/post",
     });
     expect(bot.sendMessage).toHaveBeenCalledWith(

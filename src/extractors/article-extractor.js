@@ -10,6 +10,7 @@ const EMPTY_METADATA = {
   authors: [],
   topics: [],
   featuredimage: null,
+  publishedAt: null,
 };
 
 const ARTICLE_FETCH_HEADERS = {
@@ -72,7 +73,7 @@ function applyTitleFallback(metadata, url) {
 /**
  * Fetches a URL and extracts title, description and plain text for AI summarization.
  * @param {string} url
- * @returns {Promise<{ title: string|null, description: string|null, text: string }>}
+ * @returns {Promise<{ title: string|null, description: string|null, text: string, authors: string[], publishedAt: string|null, url: string }>}
  */
 export async function fetchArticleContent(url) {
   try {
@@ -85,6 +86,9 @@ export async function fetchArticleContent(url) {
         title: fallbackTitle,
         description: null,
         text: "",
+        authors: [],
+        publishedAt: null,
+        url,
       };
     }
 
@@ -95,6 +99,9 @@ export async function fetchArticleContent(url) {
       title: metadata.title,
       description: metadata.description,
       text: extractTextFromHtml(html),
+      authors: metadata.authors,
+      publishedAt: metadata.publishedAt,
+      url,
     };
   } catch (error) {
     logger.warn({ err: error, url }, "Failed to fetch article content");
@@ -103,6 +110,9 @@ export async function fetchArticleContent(url) {
       title: fallbackTitle,
       description: null,
       text: "",
+      authors: [],
+      publishedAt: null,
+      url,
     };
   }
 }

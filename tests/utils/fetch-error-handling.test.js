@@ -38,6 +38,7 @@ describe("Fetch Error Handling", () => {
           authors: [],
           topics: [],
           featuredimage: null,
+          publishedAt: null,
         });
       }
     });
@@ -72,6 +73,7 @@ describe("Fetch Error Handling", () => {
           authors: [],
           topics: [],
           featuredimage: null,
+          publishedAt: null,
         });
       }
     });
@@ -106,6 +108,7 @@ describe("Fetch Error Handling", () => {
           authors: [],
           topics: [],
           featuredimage: null,
+          publishedAt: null,
         });
       }
     });
@@ -140,6 +143,7 @@ describe("Fetch Error Handling", () => {
           authors: [],
           topics: [],
           featuredimage: null,
+          publishedAt: null,
         });
       }
     });
@@ -164,6 +168,7 @@ describe("Fetch Error Handling", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
 
@@ -185,6 +190,7 @@ describe("Fetch Error Handling", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
 
@@ -206,6 +212,7 @@ describe("Fetch Error Handling", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
   });
@@ -254,6 +261,7 @@ describe("Fetch Error Handling", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
 
@@ -278,6 +286,7 @@ describe("Fetch Error Handling", () => {
         authors: [],
         topics: [],
         featuredimage: null,
+        publishedAt: null,
       });
     });
   });
