@@ -379,3 +379,56 @@ export async function saveUserArticleAiRating(
 
   return { success: true, relation: data };
 }
+
+/**
+ * Fetches articles the user rated highly, for taste-profile personalization.
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @param {{ excludeArticleId?: string|number, minRating?: number, limit?: number }} [options]
+ * @returns {Promise<Array<{ ai_rating: number, title: string|null, url: string|null, authors: string[], topics: string[] }>>}
+ */
+export async function getUserHighRatedArticles(
+  supabase,
+  user_id,
+  { excludeArticleId, minRating = 7, limit = 15 } = {}
+) {
+  const { data, error } = await supabase
+    .from("user_articles")
+    .select(
+      `
+      ai_rating,
+      article_id,
+      articles (
+        title,
+        url,
+        authors,
+        topics
+      )
+    `
+    )
+    .eq("user_id", user_id)
+    .not("ai_rating", "is", null)
+    .gte("ai_rating", minRating)
+    .order("ai_rated_at", { ascending: false })
+    .limit(limit + (excludeArticleId != null ? 1 : 0));
+
+  if (error) {
+    console.error("Error al obtener historial de valoraciones:", error);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter(
+      (row) =>
+        row.articles &&
+        String(row.article_id) !== String(excludeArticleId ?? "")
+    )
+    .slice(0, limit)
+    .map((row) => ({
+      ai_rating: row.ai_rating,
+      title: row.articles.title ?? null,
+      url: row.articles.url ?? null,
+      authors: row.articles.authors ?? [],
+      topics: row.articles.topics ?? [],
+    }));
+}

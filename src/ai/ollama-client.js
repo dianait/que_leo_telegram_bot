@@ -63,18 +63,26 @@ export function isOllamaEnabled() {
 }
 
 /**
+ * @param {string|null|undefined} tasteProfile
  * @returns {string}
  */
-function buildSystemPrompt() {
+export function buildSystemPrompt(tasteProfile) {
   const preferences =
     process.env.OLLAMA_USER_PREFERENCES?.trim() ||
     "Sin preferencias específicas definidas.";
+
+  const tasteSection = tasteProfile
+    ? `
+Historial real del usuario (artículos que ya valoró alto en su cuenta):
+${tasteProfile}
+`
+    : "";
 
   return `Eres un asistente que resume artículos web y los valora según los gustos del usuario.
 
 Preferencias del usuario:
 ${preferences}
-
+${tasteSection}
 Criterios para VALORACIÓN y RAZÓN (obligatorio):
 - Valora solo el CONTENIDO: profundidad, calidad técnica, claridad, originalidad y encaje con los temas que interesan al usuario.
 - La RAZÓN debe explicar por qué el contenido encaja o no con esos gustos (tema, nivel, profundidad, estilo).
@@ -92,10 +100,11 @@ RAZÓN:
 }
 
 /**
- * @param {{ title: string|null, description: string|null, text: string, url: string, authors?: string[], publishedAt?: string|null }} article
+ * @param {{ title: string|null, description: string|null, text: string, url: string, authors?: string[], topics?: string[], publishedAt?: string|null }} article
+ * @param {{ tasteProfile?: string|null }} [options]
  * @returns {Promise<string>}
  */
-export async function summarizeAndRateArticle(article) {
+export async function summarizeAndRateArticle(article, { tasteProfile } = {}) {
   const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL;
   const model = process.env.OLLAMA_MODEL;
   const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
@@ -108,7 +117,7 @@ export async function summarizeAndRateArticle(article) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: buildSystemPrompt() },
+        { role: "system", content: buildSystemPrompt(tasteProfile) },
         { role: "user", content: userContent },
       ],
       stream: false,

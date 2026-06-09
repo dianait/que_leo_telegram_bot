@@ -1,6 +1,7 @@
 import jest from "jest-mock";
 import {
   buildOllamaResponseText,
+  buildSystemPrompt,
   formatSummaryMessage,
   isOllamaEnabled,
   parseOllamaResponse,
@@ -90,6 +91,29 @@ describe("Ollama Client", () => {
       expect(body.messages[1].content).toContain("Fuente: example.com");
     });
 
+    test("incluye historial del usuario en el system prompt si existe", async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          message: { content: "RESUMEN:\nOk.\n\nVALORACIÓN: 8/10\nRAZÓN:\nBien." },
+        }),
+      });
+
+      await summarizeAndRateArticle(
+        {
+          title: "Artículo",
+          description: null,
+          text: "Contenido",
+          url: "https://example.com/post",
+        },
+        { tasteProfile: "- Temas recurrentes: Swift (2)" }
+      );
+
+      const body = JSON.parse(fetch.mock.calls[0][1].body);
+      expect(body.messages[0].content).toContain("Historial real del usuario");
+      expect(body.messages[0].content).toContain("Temas recurrentes: Swift (2)");
+    });
+
     test("pide valorar por contenido y no por paywalls o membresías", async () => {
       fetch.mockResolvedValueOnce({
         ok: true,
@@ -128,6 +152,14 @@ describe("Ollama Client", () => {
           url: "https://example.com",
         })
       ).rejects.toThrow("Ollama respondió con 500");
+    });
+  });
+
+  describe("buildSystemPrompt", () => {
+    test("omite historial si no hay perfil de gustos", () => {
+      const prompt = buildSystemPrompt(null);
+
+      expect(prompt).not.toContain("Historial real del usuario");
     });
   });
 

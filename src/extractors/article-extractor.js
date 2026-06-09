@@ -73,7 +73,7 @@ function applyTitleFallback(metadata, url) {
 /**
  * Fetches a URL and extracts title, description and plain text for AI summarization.
  * @param {string} url
- * @returns {Promise<{ title: string|null, description: string|null, text: string, authors: string[], publishedAt: string|null, url: string }>}
+ * @returns {Promise<{ title: string|null, description: string|null, text: string, authors: string[], topics: string[], publishedAt: string|null, url: string }>}
  */
 export async function fetchArticleContent(url) {
   try {
@@ -87,6 +87,7 @@ export async function fetchArticleContent(url) {
         description: null,
         text: "",
         authors: [],
+        topics: [],
         publishedAt: null,
         url,
       };
@@ -100,6 +101,7 @@ export async function fetchArticleContent(url) {
       description: metadata.description,
       text: extractTextFromHtml(html),
       authors: metadata.authors,
+      topics: metadata.topics,
       publishedAt: metadata.publishedAt,
       url,
     };
@@ -111,6 +113,7 @@ export async function fetchArticleContent(url) {
       description: null,
       text: "",
       authors: [],
+      topics: [],
       publishedAt: null,
       url,
     };

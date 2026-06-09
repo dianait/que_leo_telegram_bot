@@ -14,6 +14,11 @@ describe("sendArticleSummary", () => {
   );
   const parseOllamaResponse = jest.fn();
   const saveUserArticleAiRating = jest.fn();
+  const getUserHighRatedArticles = jest.fn();
+  const buildTasteProfileFromHistory = jest.fn();
+  const formatTasteProfileForPrompt = jest.fn();
+  const getHistoryMinRating = jest.fn();
+  const getHistoryMaxArticles = jest.fn();
   const logOllamaError = jest.fn();
   const shouldNotifyOnOllamaError = jest.fn();
 
@@ -24,6 +29,11 @@ describe("sendArticleSummary", () => {
     parseOllamaResponse,
     formatSummaryMessage,
     saveUserArticleAiRating,
+    getUserHighRatedArticles,
+    buildTasteProfileFromHistory,
+    formatTasteProfileForPrompt,
+    getHistoryMinRating,
+    getHistoryMaxArticles,
     logOllamaError,
     shouldNotifyOnOllamaError,
   };
@@ -36,11 +46,21 @@ describe("sendArticleSummary", () => {
     parseOllamaResponse.mockClear();
     formatSummaryMessage.mockClear();
     saveUserArticleAiRating.mockClear();
+    getUserHighRatedArticles.mockClear();
+    buildTasteProfileFromHistory.mockClear();
+    formatTasteProfileForPrompt.mockClear();
+    getHistoryMinRating.mockClear();
+    getHistoryMaxArticles.mockClear();
     logOllamaError.mockClear();
     shouldNotifyOnOllamaError.mockClear();
 
     isOllamaEnabled.mockReturnValue(true);
     shouldNotifyOnOllamaError.mockReturnValue(true);
+    getHistoryMinRating.mockReturnValue(7);
+    getHistoryMaxArticles.mockReturnValue(15);
+    getUserHighRatedArticles.mockResolvedValue([]);
+    buildTasteProfileFromHistory.mockReturnValue({ totalArticles: 0 });
+    formatTasteProfileForPrompt.mockReturnValue(null);
     parseOllamaResponse.mockReturnValue({
       summary: "Muy interesante.",
       rating: 9,
@@ -52,6 +72,7 @@ describe("sendArticleSummary", () => {
       description: "Descripción corta",
       text: "Contenido largo del artículo",
       authors: ["Autor"],
+      topics: ["Swift"],
       publishedAt: "2026-01-01T00:00:00.000Z",
       url: "https://example.com/post",
     });
@@ -73,14 +94,18 @@ describe("sendArticleSummary", () => {
     await sendArticleSummary(bot, 123, "https://example.com/post", deps);
 
     expect(fetchArticleContent).toHaveBeenCalledWith("https://example.com/post");
-    expect(summarizeAndRateArticle).toHaveBeenCalledWith({
-      title: "Artículo de prueba",
-      description: "Descripción corta",
-      text: "Contenido largo del artículo",
-      authors: ["Autor"],
-      publishedAt: "2026-01-01T00:00:00.000Z",
-      url: "https://example.com/post",
-    });
+    expect(summarizeAndRateArticle).toHaveBeenCalledWith(
+      {
+        title: "Artículo de prueba",
+        description: "Descripción corta",
+        text: "Contenido largo del artículo",
+        authors: ["Autor"],
+        topics: ["Swift"],
+        publishedAt: "2026-01-01T00:00:00.000Z",
+        url: "https://example.com/post",
+      },
+      { tasteProfile: null }
+    );
     expect(bot.sendMessage).toHaveBeenCalledWith(
       123,
       expect.stringContaining("VALORACIÓN: 9/10")
@@ -97,6 +122,28 @@ describe("sendArticleSummary", () => {
     expect(bot.sendMessage).toHaveBeenCalledWith(
       123,
       "⚠️ No pude generar el resumen (Ollama no disponible)."
+    );
+  });
+
+  test("carga historial del usuario antes de valorar", async () => {
+    const supabase = {};
+    formatTasteProfileForPrompt.mockReturnValue("- Temas recurrentes: Swift (2)");
+
+    await sendArticleSummary(bot, 123, "https://example.com/post", {
+      supabase,
+      userId: "user-1",
+      articleId: "article-1",
+      ...deps,
+    });
+
+    expect(getUserHighRatedArticles).toHaveBeenCalledWith(supabase, "user-1", {
+      excludeArticleId: "article-1",
+      minRating: 7,
+      limit: 15,
+    });
+    expect(summarizeAndRateArticle).toHaveBeenCalledWith(
+      expect.any(Object),
+      { tasteProfile: "- Temas recurrentes: Swift (2)" }
     );
   });
 

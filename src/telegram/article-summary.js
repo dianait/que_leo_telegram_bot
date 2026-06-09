@@ -1,3 +1,9 @@
+import {
+  buildTasteProfileFromHistory,
+  formatTasteProfileForPrompt,
+  getHistoryMaxArticles,
+  getHistoryMinRating,
+} from "../ai/user-taste-profile.js";
 import { fetchArticleContent } from "../extractors/article-extractor.js";
 import {
   buildOllamaResponseText,
@@ -8,7 +14,10 @@ import {
   shouldNotifyOnOllamaError,
   summarizeAndRateArticle,
 } from "../ai/ollama-client.js";
-import { saveUserArticleAiRating } from "../db/service.js";
+import {
+  getUserHighRatedArticles,
+  saveUserArticleAiRating,
+} from "../db/service.js";
 import { logger } from "../utils/logger.js";
 
 const defaultDeps = {
@@ -21,7 +30,31 @@ const defaultDeps = {
   logOllamaError,
   shouldNotifyOnOllamaError,
   saveUserArticleAiRating,
+  getUserHighRatedArticles,
+  buildTasteProfileFromHistory,
+  formatTasteProfileForPrompt,
+  getHistoryMinRating,
+  getHistoryMaxArticles,
 };
+
+/**
+ * @param {typeof defaultDeps} deps
+ * @param {object} supabase
+ * @param {string} userId
+ * @param {string|number|undefined} articleId
+ * @returns {Promise<string|null>}
+ */
+async function loadTasteProfile(deps, supabase, userId, articleId) {
+  const history = await deps.getUserHighRatedArticles(supabase, userId, {
+    excludeArticleId: articleId,
+    minRating: deps.getHistoryMinRating(),
+    limit: deps.getHistoryMaxArticles(),
+  });
+
+  return deps.formatTasteProfileForPrompt(
+    deps.buildTasteProfileFromHistory(history)
+  );
+}
 
 /**
  * Genera y envía por Telegram un resumen y valoración del artículo (async).
@@ -40,7 +73,14 @@ export async function sendArticleSummary(bot, chatId, url, options = {}) {
 
   try {
     const article = await deps.fetchArticleContent(url);
-    const rawSummary = await deps.summarizeAndRateArticle(article);
+    const tasteProfile =
+      supabase && userId
+        ? await loadTasteProfile(deps, supabase, userId, articleId)
+        : null;
+
+    const rawSummary = await deps.summarizeAndRateArticle(article, {
+      tasteProfile,
+    });
 
     const parsed = deps.parseOllamaResponse(rawSummary);
     const summaryText =
@@ -49,7 +89,6 @@ export async function sendArticleSummary(bot, chatId, url, options = {}) {
     await bot.sendMessage(chatId, deps.formatSummaryMessage(summaryText));
 
     if (supabase && userId && articleId) {
-
       if (parsed.summary || parsed.rating != null) {
         const result = await deps.saveUserArticleAiRating(
           supabase,
