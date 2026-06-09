@@ -29,6 +29,37 @@ describe("Metadata Extractor", () => {
       });
     });
 
+    test("prefiere og:title sobre el tag title (Medium)", () => {
+      const html = `
+        <html>
+          <head>
+            <title>Long Title | by Author | Medium</title>
+            <meta content="Clean Title" property="og:title"/>
+            <meta content="Short summary." property="og:description"/>
+          </head>
+        </html>
+      `;
+
+      const result = extractMetadataBasic(html);
+
+      expect(result.title).toBe("Clean Title");
+      expect(result.description).toBe("Short summary.");
+    });
+
+    test("limpia títulos largos de Medium del tag title", () => {
+      const html = `
+        <html>
+          <head>
+            <title>My Post Title | by Jane Doe | Some Pub | Jun, 2026 | Medium</title>
+          </head>
+        </html>
+      `;
+
+      const result = extractMetadataBasic(html);
+
+      expect(result.title).toBe("My Post Title");
+    });
+
     test("extrae imagen destacada de Open Graph", () => {
       const html = `
         <html>

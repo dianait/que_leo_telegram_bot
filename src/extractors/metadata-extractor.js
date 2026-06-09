@@ -1,4 +1,51 @@
 /**
+ * Extrae el atributo content de un meta tag por property o name.
+ * Soporta ambos órdenes de atributos (property/content o content/property).
+ * @param {string} html
+ * @param {{ property?: string, name?: string }} selector
+ * @returns {string|null}
+ */
+function extractMetaContent(html, { property, name }) {
+  if (!html) return null;
+
+  const attr = property ? "property" : "name";
+  const value = property ?? name;
+  const patterns = [
+    new RegExp(
+      `<meta[^>]*${attr}=["']${value}["'][^>]*content=["']([^"']+)["']`,
+      "i"
+    ),
+    new RegExp(
+      `<meta[^>]*content=["']([^"']+)["'][^>]*${attr}=["']${value}["']`,
+      "i"
+    ),
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) return decodeHtmlEntities(match[1].trim());
+  }
+
+  return null;
+}
+
+/**
+ * Limpia títulos largos de sitios como Medium ("Título | by Autor | Medium").
+ * @param {string|null} title
+ * @returns {string|null}
+ */
+function cleanPageTitle(title) {
+  if (!title) return null;
+  if (title === "Medium") return null;
+
+  const byIndex = title.indexOf(" | by ");
+  if (byIndex > 0) return title.slice(0, byIndex).trim();
+
+  const withoutMedium = title.replace(/\s*\|\s*Medium\s*$/i, "").trim();
+  return withoutMedium || title;
+}
+
+/**
  * Decodifica entidades HTML comunes
  * @param {string} text - Texto con entidades HTML
  * @returns {string} Texto decodificado
@@ -168,9 +215,17 @@ export function extractMetadataBasic(html, baseUrl = null) {
     };
   }
 
-  // Extraer título
+  // Extraer título (og:title es más fiable en sitios como Medium)
   const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  const title = titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : null;
+  const rawTitle = titleMatch ? decodeHtmlEntities(titleMatch[1].trim()) : null;
+  const title =
+    extractMetaContent(html, { property: "og:title" }) ??
+    extractMetaContent(html, { name: "twitter:title" }) ??
+    cleanPageTitle(rawTitle);
+
+  const description =
+    extractMetaContent(html, { property: "og:description" }) ??
+    extractMetaContent(html, { name: "description" });
 
   // Extraer idioma
   const langMatch = html.match(/<html[^>]*lang=["']([^"']+)["']/i);
@@ -198,7 +253,7 @@ export function extractMetadataBasic(html, baseUrl = null) {
 
   return {
     title,
-    description: null, // No extraemos descripción en modo básico
+    description,
     language,
     authors,
     topics,
