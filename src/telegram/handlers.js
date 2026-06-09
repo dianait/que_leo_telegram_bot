@@ -18,6 +18,7 @@ import {
 import { checkRateLimit } from "./rate-limiter.js";
 import { extractFirstUrl } from "../utils/validators.js";
 import { logger } from "../utils/logger.js";
+import { sendArticleSummary } from "./article-summary.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -166,7 +167,14 @@ export function registerTelegramHandlers(bot, supabase) {
           // Mensaje de confirmación simple
           const confirmMessage = `✅ Guardado: ${title || "(sin título)"}`;
           bot.sendMessage(chatId, confirmMessage);
-          // Fin del flujo simplificado
+
+          sendArticleSummary(bot, chatId, urlExtraida).catch((error) => {
+            logger.warn(
+              { err: error, chatId, url: urlExtraida },
+              "Unhandled error in article summary task"
+            );
+          });
+
           return;
         } catch (error) {
           // Manejar errores específicos de extracción de metadatos

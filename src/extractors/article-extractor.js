@@ -1,4 +1,5 @@
 import { isValidUrl as baseIsValidUrl } from "../utils/validators.js";
+import { extractTextFromHtml } from "./article-text.js";
 import { extractMetadataBasic } from "./metadata-extractor.js";
 import { logger } from "../utils/logger.js";
 
@@ -42,6 +43,70 @@ function titleFromUrlSlug(url) {
   }
 }
 
+function logFetchError(url, res) {
+  logger.warn(
+    {
+      url,
+      finalUrl: res.url,
+      status: res.status,
+      statusText: res.statusText,
+      hostname: new URL(url).hostname,
+    },
+    res.status === 403
+      ? "Metadata fetch blocked (403) — el sitio rechazó la petición"
+      : "Metadata fetch returned non-OK response"
+  );
+}
+
+function applyTitleFallback(metadata, url) {
+  if (!metadata.title || metadata.title === "Medium") {
+    const fallbackTitle = titleFromUrlSlug(url);
+    if (fallbackTitle) {
+      metadata.title = fallbackTitle;
+    }
+  }
+
+  return metadata;
+}
+
+/**
+ * Fetches a URL and extracts title, description and plain text for AI summarization.
+ * @param {string} url
+ * @returns {Promise<{ title: string|null, description: string|null, text: string }>}
+ */
+export async function fetchArticleContent(url) {
+  try {
+    const res = await fetch(url, { headers: ARTICLE_FETCH_HEADERS });
+
+    if (!res.ok) {
+      logFetchError(url, res);
+      const fallbackTitle = titleFromUrlSlug(url);
+      return {
+        title: fallbackTitle,
+        description: null,
+        text: "",
+      };
+    }
+
+    const html = await res.text();
+    const metadata = applyTitleFallback(extractMetadataBasic(html, url), url);
+
+    return {
+      title: metadata.title,
+      description: metadata.description,
+      text: extractTextFromHtml(html),
+    };
+  } catch (error) {
+    logger.warn({ err: error, url }, "Failed to fetch article content");
+    const fallbackTitle = titleFromUrlSlug(url);
+    return {
+      title: fallbackTitle,
+      description: null,
+      text: "",
+    };
+  }
+}
+
 /**
  * Fetches a URL and extracts basic metadata from the HTML.
  * @param {string} url - URL to process
@@ -52,18 +117,7 @@ export async function fetchAndExtractMetadata(url) {
     const res = await fetch(url, { headers: ARTICLE_FETCH_HEADERS });
 
     if (!res.ok) {
-      logger.warn(
-        {
-          url,
-          finalUrl: res.url,
-          status: res.status,
-          statusText: res.statusText,
-          hostname: new URL(url).hostname,
-        },
-        res.status === 403
-          ? "Metadata fetch blocked (403) — el sitio rechazó la petición"
-          : "Metadata fetch returned non-OK response"
-      );
+      logFetchError(url, res);
 
       const fallbackTitle = titleFromUrlSlug(url);
       return fallbackTitle
@@ -72,16 +126,7 @@ export async function fetchAndExtractMetadata(url) {
     }
 
     const html = await res.text();
-    const metadata = extractMetadataBasic(html, url);
-
-    if (!metadata.title || metadata.title === "Medium") {
-      const fallbackTitle = titleFromUrlSlug(url);
-      if (fallbackTitle) {
-        metadata.title = fallbackTitle;
-      }
-    }
-
-    return metadata;
+    return applyTitleFallback(extractMetadataBasic(html, url), url);
   } catch (error) {
     logger.warn({ err: error, url }, "Failed to fetch article metadata");
     const fallbackTitle = titleFromUrlSlug(url);

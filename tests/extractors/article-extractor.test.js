@@ -1,5 +1,8 @@
 import jest from "jest-mock";
-import { fetchAndExtractMetadata } from "../../src/extractors/article-extractor.js";
+import {
+  fetchAndExtractMetadata,
+  fetchArticleContent,
+} from "../../src/extractors/article-extractor.js";
 
 global.fetch = jest.fn();
 
@@ -71,6 +74,31 @@ describe("Article Extractor", () => {
 
     expect(metadata.title).toBe("How To Learn Rust");
     expect(metadata.description).toBeNull();
+  });
+
+  test("fetchArticleContent extrae título, descripción y texto", async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      url: "https://example.com/post",
+      text: () =>
+        Promise.resolve(`
+        <html>
+          <head>
+            <title>Mi artículo</title>
+            <meta property="og:description" content="Resumen corto"/>
+          </head>
+          <body>
+            <article><p>Contenido principal del artículo.</p></article>
+          </body>
+        </html>
+      `),
+    });
+
+    const content = await fetchArticleContent("https://example.com/post");
+
+    expect(content.title).toBe("Mi artículo");
+    expect(content.description).toBe("Resumen corto");
+    expect(content.text).toContain("Contenido principal del artículo");
   });
 
   test("devuelve metadatos vacíos si fetch falla sin slug útil", async () => {

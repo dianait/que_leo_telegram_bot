@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { registerTelegramHandlers } from "./src/telegram/handlers.js";
 import { cleanupRateLimiter } from "./src/telegram/rate-limiter.js";
 import { startWebServer } from "./src/web/server.js";
+import { isOllamaEnabled } from "./src/ai/ollama-client.js";
 dotenv.config();
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -20,6 +21,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
 console.log("🚀 Bot de Telegram iniciado");
+
+if (isOllamaEnabled()) {
+  console.log(
+    `Resúmenes Ollama habilitados (${process.env.OLLAMA_MODEL} @ ${process.env.OLLAMA_BASE_URL})`
+  );
+} else if (process.env.OLLAMA_ENABLED === "true") {
+  console.warn(
+    "OLLAMA_ENABLED=true pero faltan OLLAMA_BASE_URL u OLLAMA_MODEL; resúmenes desactivados"
+  );
+}
+
 registerTelegramHandlers(bot, supabase);
 
 const server = startWebServer();
