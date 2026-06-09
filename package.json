@@ -8,16 +8,17 @@
     "start": "node index.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "backfill-articles": "node src/jobs/backfill-user-articles.js",
     "update-readme": "node scripts/update-readme.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.50.1",
     "cors": "2.8.5",
     "dotenv": "16.6.0",
-    "express": "^4.22.2",
+    "express": "4.22.2",
     "express-rate-limit": "7.5.0",
     "helmet": "8.0.0",
-    "node-telegram-bot-api": "^0.67.0",
+    "node-telegram-bot-api": "0.67.0",
     "pino": "9.6.0"
   },
   "devDependencies": {

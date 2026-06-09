@@ -387,6 +387,71 @@ export async function saveUserArticleAiRating(
  * @param {{ excludeArticleId?: string|number, minRating?: number, limit?: number }} [options]
  * @returns {Promise<Array<{ ai_rating: number, title: string|null, url: string|null, authors: string[], topics: string[] }>>}
  */
+/**
+ * Lists all articles linked to a user, with AI fields and article details.
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @returns {Promise<{ success: boolean, rows: object[], error?: any }>}
+ */
+export async function listUserArticlesWithDetails(supabase, user_id) {
+  const { data, error } = await supabase
+    .from("user_articles")
+    .select(
+      `
+      article_id,
+      ai_summary,
+      ai_rating,
+      ai_rating_reason,
+      ai_rated_at,
+      articles (
+        id,
+        title,
+        url,
+        language,
+        authors,
+        topics,
+        featured_image
+      )
+    `
+    )
+    .eq("user_id", user_id)
+    .order("added_at", { ascending: true });
+
+  if (error) {
+    console.error("Error al listar artículos del usuario:", error);
+    return { success: false, rows: [], error };
+  }
+
+  return { success: true, rows: data ?? [] };
+}
+
+/**
+ * Updates missing article metadata fields without overwriting existing values.
+ * @param {SupabaseClient} supabase
+ * @param {string|number} articleId
+ * @param {object} metadata
+ * @returns {Promise<{ success: boolean, article?: object, error?: any }>}
+ */
+export async function updateArticleMetadata(supabase, articleId, metadata) {
+  const payload = {
+    updated_at: new Date().toISOString(),
+    ...metadata,
+  };
+
+  const { data, error } = await supabase
+    .from("articles")
+    .update(payload)
+    .eq("id", articleId)
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error };
+  }
+
+  return { success: true, article: data };
+}
+
 export async function getUserHighRatedArticles(
   supabase,
   user_id,

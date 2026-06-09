@@ -197,8 +197,6 @@ export { app };
 export function startWebServer() {
   const server = app.listen(PORT, () => {
     console.log(`🌐 Servidor web iniciado en puerto ${PORT}`);
-    console.log(`   GET  /health`);
-    console.log(`   GET  /api/extract-metadata?url=<URL>`);
   });
   return server;
 }
