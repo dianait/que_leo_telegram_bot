@@ -12,21 +12,41 @@ import { extractFirstUrl } from "../utils/validators.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const DEFAULT_ORIGINS = [
-  "https://que-leo.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-  "http://localhost:8080",
-  "http://127.0.0.1:3000",
-  "http://127.0.0.1:3001",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:8080",
-];
+const PRODUCTION_ORIGIN = "https://que-leo.vercel.app";
 
-function getAllowedOrigins() {
+/**
+ * @param {string} [origin]
+ * @returns {boolean}
+ */
+function isLocalDevOrigin(origin) {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return (
+      protocol === "http:" &&
+      (hostname === "localhost" || hostname === "127.0.0.1")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Preview deployments on Vercel (e.g. que-leo-git-main-*.vercel.app).
+ * @param {string} origin
+ * @returns {boolean}
+ */
+function isVercelPreviewOrigin(origin) {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return protocol === "https:" && hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
+function getExtraOrigins() {
   if (!process.env.ALLOWED_ORIGINS) {
-    return DEFAULT_ORIGINS;
+    return [];
   }
 
   return process.env.ALLOWED_ORIGINS.split(",")
@@ -34,10 +54,43 @@ function getAllowedOrigins() {
     .filter(Boolean);
 }
 
+/**
+ * @param {string|undefined} origin
+ * @returns {boolean}
+ */
+export function isOriginAllowed(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  const allowed = new Set([PRODUCTION_ORIGIN, ...getExtraOrigins()]);
+  if (allowed.has(origin)) {
+    return true;
+  }
+
+  if (isVercelPreviewOrigin(origin)) {
+    return true;
+  }
+
+  if (process.env.NODE_ENV !== "production" && isLocalDevOrigin(origin)) {
+    return true;
+  }
+
+  return false;
+}
+
 app.use(helmet());
 app.use(
   cors({
-    origin: getAllowedOrigins(),
+    origin(origin, callback) {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      logger.warn({ origin }, "CORS request blocked");
+      callback(new Error(`Origin not allowed: ${origin}`));
+    },
     methods: ["GET", "OPTIONS"],
     credentials: false,
     allowedHeaders: ["Content-Type", "Authorization"],
