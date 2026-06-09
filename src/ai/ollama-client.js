@@ -2,6 +2,53 @@ import { logger } from "../utils/logger.js";
 
 const DEFAULT_BASE_URL = "http://localhost:11434";
 const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_SUMMARY_MAX_CHARS = 400;
+const DEFAULT_REASON_MAX_CHARS = 120;
+
+/**
+ * @returns {number}
+ */
+export function getSummaryMaxChars() {
+  const value = Number(process.env.OLLAMA_SUMMARY_MAX_CHARS);
+  return Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_SUMMARY_MAX_CHARS;
+}
+
+/**
+ * @returns {number}
+ */
+export function getReasonMaxChars() {
+  const value = Number(process.env.OLLAMA_REASON_MAX_CHARS);
+  return Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_REASON_MAX_CHARS;
+}
+
+/**
+ * @param {string|null|undefined} text
+ * @param {number} maxChars
+ * @returns {string|null}
+ */
+export function truncateText(text, maxChars) {
+  if (!text) {
+    return null;
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+
+  const slice = trimmed.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+
+  if (lastSpace <= 0) {
+    return `${slice}…`;
+  }
+
+  return `${slice.slice(0, lastSpace)}…`;
+}
 
 /**
  * @returns {boolean}
@@ -29,11 +76,11 @@ ${preferences}
 
 Responde SIEMPRE en español con este formato exacto:
 RESUMEN:
-(3-5 frases claras)
+(máximo 2-3 frases cortas; unas 80 palabras en total; ve al grano)
 
 VALORACIÓN: X/10
 RAZÓN:
-(una línea explicando si encaja con los gustos del usuario)`;
+(una sola línea breve, máximo 15 palabras, explicando si encaja con los gustos del usuario)`;
 }
 
 /**
@@ -79,6 +126,57 @@ ${text || "(sin texto extraído — usa título y descripción para el resumen)"
   }
 
   return content;
+}
+
+const OLLAMA_RESPONSE_PATTERN =
+  /RESUMEN:\s*([\s\S]*?)\n\nVALORACIÓN:\s*(\d{1,2})\s*\/\s*10\s*\nRAZÓN:\s*([\s\S]*)/i;
+
+/**
+ * @param {string} raw
+ * @returns {{ summary: string|null, rating: number|null, reason: string|null }}
+ */
+export function parseOllamaResponse(raw) {
+  const match = raw.match(OLLAMA_RESPONSE_PATTERN);
+
+  if (!match) {
+    return { summary: null, rating: null, reason: null };
+  }
+
+  const summary = truncateText(match[1], getSummaryMaxChars());
+  const rating = Number.parseInt(match[2], 10);
+  const reason = truncateText(match[3], getReasonMaxChars());
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
+    return { summary, rating: null, reason };
+  }
+
+  return { summary, rating, reason };
+}
+
+/**
+ * @param {{ summary: string|null, rating: number|null, reason: string|null }} parsed
+ * @returns {string|null}
+ */
+export function buildOllamaResponseText({ summary, rating, reason }) {
+  if (!summary && rating == null && !reason) {
+    return null;
+  }
+
+  const parts = [];
+
+  if (summary) {
+    parts.push(`RESUMEN:\n${summary}`);
+  }
+
+  if (rating != null) {
+    parts.push(`VALORACIÓN: ${rating}/10`);
+  }
+
+  if (reason) {
+    parts.push(`RAZÓN:\n${reason}`);
+  }
+
+  return parts.join("\n\n");
 }
 
 /**

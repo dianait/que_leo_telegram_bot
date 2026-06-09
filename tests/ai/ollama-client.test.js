@@ -1,9 +1,12 @@
 import jest from "jest-mock";
 import {
+  buildOllamaResponseText,
   formatSummaryMessage,
   isOllamaEnabled,
+  parseOllamaResponse,
   shouldNotifyOnOllamaError,
   summarizeAndRateArticle,
+  truncateText,
 } from "../../src/ai/ollama-client.js";
 
 global.fetch = jest.fn();
@@ -100,6 +103,80 @@ describe("Ollama Client", () => {
           url: "https://example.com",
         })
       ).rejects.toThrow("Ollama respondió con 500");
+    });
+  });
+
+  describe("truncateText", () => {
+    test("no trunca texto corto", () => {
+      expect(truncateText("Hola mundo", 20)).toBe("Hola mundo");
+    });
+
+    test("trunca en el último espacio y añade elipsis", () => {
+      const longText =
+        "Esta es una frase bastante larga que debería cortarse antes de llegar al final del límite configurado para el resumen del artículo.";
+
+      const result = truncateText(longText, 60);
+
+      expect(result.endsWith("…")).toBe(true);
+      expect(result.length).toBeLessThanOrEqual(61);
+    });
+  });
+
+  describe("buildOllamaResponseText", () => {
+    test("reconstruye el formato esperado", () => {
+      const text = buildOllamaResponseText({
+        summary: "Resumen breve.",
+        rating: 8,
+        reason: "Encaja bien.",
+      });
+
+      expect(text).toBe(
+        "RESUMEN:\nResumen breve.\n\nVALORACIÓN: 8/10\n\nRAZÓN:\nEncaja bien."
+      );
+    });
+  });
+
+  describe("parseOllamaResponse", () => {
+    test("extrae resumen, valoración y razón", () => {
+      const parsed = parseOllamaResponse(
+        "RESUMEN:\nMuy interesante.\n\nVALORACIÓN: 9/10\nRAZÓN:\nEncaja con tus gustos."
+      );
+
+      expect(parsed).toEqual({
+        summary: "Muy interesante.",
+        rating: 9,
+        reason: "Encaja con tus gustos.",
+      });
+    });
+
+    test("devuelve nulls si el formato no coincide", () => {
+      expect(parseOllamaResponse("texto libre sin formato")).toEqual({
+        summary: null,
+        rating: null,
+        reason: null,
+      });
+    });
+
+    test("rechaza valoraciones fuera de rango", () => {
+      const parsed = parseOllamaResponse(
+        "RESUMEN:\nOk.\n\nVALORACIÓN: 11/10\nRAZÓN:\nDemasiado alto."
+      );
+
+      expect(parsed.summary).toBe("Ok.");
+      expect(parsed.rating).toBeNull();
+      expect(parsed.reason).toBe("Demasiado alto.");
+    });
+
+    test("trunca resúmenes demasiado largos", () => {
+      process.env.OLLAMA_SUMMARY_MAX_CHARS = "40";
+      const longSummary = "a".repeat(80);
+
+      const parsed = parseOllamaResponse(
+        `RESUMEN:\n${longSummary}\n\nVALORACIÓN: 7/10\nRAZÓN:\nBien.`
+      );
+
+      expect(parsed.summary?.length).toBeLessThanOrEqual(41);
+      expect(parsed.summary?.endsWith("…")).toBe(true);
     });
   });
 

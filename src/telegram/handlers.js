@@ -168,7 +168,11 @@ export function registerTelegramHandlers(bot, supabase) {
           const confirmMessage = `✅ Guardado: ${title || "(sin título)"}`;
           bot.sendMessage(chatId, confirmMessage);
 
-          sendArticleSummary(bot, chatId, urlExtraida).catch((error) => {
+          sendArticleSummary(bot, chatId, urlExtraida, {
+            supabase,
+            userId: user.user_id,
+            articleId: result.article.id,
+          }).catch((error) => {
             logger.warn(
               { err: error, chatId, url: urlExtraida },
               "Unhandled error in article summary task"

@@ -330,3 +330,52 @@ export async function upsertArticleAndUserRelation(
     article
   );
 }
+
+/**
+ * Persists AI summary and rating for a user-article relation.
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @param {string|number} article_id
+ * @param {{ ai_summary?: string|null, ai_rating?: number|null, ai_rating_reason?: string|null }} ratingData
+ * @returns {Promise<{ success: boolean, relation?: object, error?: any }>}
+ */
+export async function saveUserArticleAiRating(
+  supabase,
+  user_id,
+  article_id,
+  { ai_summary, ai_rating, ai_rating_reason }
+) {
+  if (!ai_summary && ai_rating == null) {
+    return { success: false, error: { message: "No AI rating data to save" } };
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    updated_at: now,
+    ai_rated_at: now,
+  };
+
+  if (ai_summary) {
+    payload.ai_summary = ai_summary;
+  }
+  if (ai_rating != null) {
+    payload.ai_rating = ai_rating;
+  }
+  if (ai_rating_reason) {
+    payload.ai_rating_reason = ai_rating_reason;
+  }
+
+  const { data, error } = await supabase
+    .from("user_articles")
+    .update(payload)
+    .eq("user_id", user_id)
+    .eq("article_id", article_id)
+    .select()
+    .single();
+
+  if (error) {
+    return { success: false, error };
+  }
+
+  return { success: true, relation: data };
+}

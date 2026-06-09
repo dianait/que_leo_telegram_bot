@@ -120,12 +120,44 @@ export function createInMemorySupabase() {
           select: () => ({
             single: async () => {
               const key = `${payload.user_id}:${payload.article_id}`;
-              const relation = { ...payload };
+              const existing = userArticles.get(key);
+              const relation = { ...existing, ...payload };
               userArticles.set(key, relation);
               return { data: relation, error: null };
             },
           }),
         };
+      },
+
+      update(payload) {
+        const filters = [];
+
+        const query = {
+          eq(column, value) {
+            filters.push([column, value]);
+            return query;
+          },
+          select: () => ({
+            single: async () => {
+              const row = [...userArticles.values()].find((candidate) =>
+                filters.every(([column, value]) =>
+                  matchFilter(candidate, column, value)
+                )
+              );
+
+              if (!row) {
+                return { data: null, error: { message: "not found" } };
+              }
+
+              const key = `${row.user_id}:${row.article_id}`;
+              const updated = { ...row, ...payload };
+              userArticles.set(key, updated);
+              return { data: updated, error: null };
+            },
+          }),
+        };
+
+        return query;
       },
 
       delete: () => ({
