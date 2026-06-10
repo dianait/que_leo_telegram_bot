@@ -1,4 +1,5 @@
 import { formatArticleContextForAi } from "../extractors/article-signals.js";
+import { normalizeAuthors } from "../utils/author-normalizer.js";
 import { logger } from "../utils/logger.js";
 
 const DEFAULT_BASE_URL = "http://localhost:11434";
@@ -63,13 +64,12 @@ export function isOllamaEnabled() {
 }
 
 /**
- * @param {string|null|undefined} tasteProfile
+ * @param {{ tasteProfile?: string|null, userPreferences?: string|null }} [options]
  * @returns {string}
  */
-export function buildSystemPrompt(tasteProfile) {
+export function buildSystemPrompt({ tasteProfile, userPreferences } = {}) {
   const preferences =
-    process.env.OLLAMA_USER_PREFERENCES?.trim() ||
-    "Sin preferencias específicas definidas.";
+    userPreferences?.trim() || "Sin preferencias específicas definidas.";
 
   const tasteSection = tasteProfile
     ? `
@@ -101,10 +101,13 @@ RAZÓN:
 
 /**
  * @param {{ title: string|null, description: string|null, text: string, url: string, authors?: string[], topics?: string[], publishedAt?: string|null }} article
- * @param {{ tasteProfile?: string|null }} [options]
+ * @param {{ tasteProfile?: string|null, userPreferences?: string|null }} [options]
  * @returns {Promise<string>}
  */
-export async function summarizeAndRateArticle(article, { tasteProfile } = {}) {
+export async function summarizeAndRateArticle(
+  article,
+  { tasteProfile, userPreferences } = {}
+) {
   const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL;
   const model = process.env.OLLAMA_MODEL;
   const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
@@ -117,7 +120,10 @@ export async function summarizeAndRateArticle(article, { tasteProfile } = {}) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: buildSystemPrompt(tasteProfile) },
+        {
+          role: "system",
+          content: buildSystemPrompt({ tasteProfile, userPreferences }),
+        },
         { role: "user", content: userContent },
       ],
       stream: false,
@@ -252,4 +258,194 @@ export function shouldNotifyOnOllamaError() {
  */
 export function logOllamaError(error, url) {
   logger.warn({ err: error, url }, "Failed to generate article summary with Ollama");
+}
+
+/**
+ * @param {number} maxChars
+ * @returns {string}
+ */
+export function buildPreferencesConsolidationPrompt(maxChars) {
+  return `Eres un asistente que resume preferencias de lectura de un usuario.
+Tu tarea es fusionar y condensar la información en un único texto coherente en español.
+Debe conservar TODOS los temas, intereses, cosas a evitar y preferencias de profundidad o estilo.
+Elimina redundancias y repeticiones.
+El resultado debe ser texto plano (sin listas numeradas ni markdown), listo para usar como prompt de IA.
+Máximo ${maxChars} caracteres. Responde SOLO con el texto final, sin explicaciones ni encabezados.`;
+}
+
+/**
+ * @param {string} rawText
+ * @param {number} maxChars
+ * @returns {Promise<string>}
+ */
+async function requestPreferencesConsolidation(rawText, maxChars) {
+  const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL;
+  const model = process.env.OLLAMA_MODEL;
+  const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: buildPreferencesConsolidationPrompt(maxChars),
+        },
+        {
+          role: "user",
+          content: `Preferencias del usuario a consolidar:\n\n${rawText}`,
+        },
+      ],
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Ollama respondió con ${response.status} ${response.statusText}`
+    );
+  }
+
+  const data = await response.json();
+  const content = data.message?.content?.trim();
+
+  if (!content) {
+    throw new Error("Ollama devolvió una respuesta vacía");
+  }
+
+  return content;
+}
+
+/**
+ * @param {string} rawText
+ * @param {{ maxChars?: number, force?: boolean }} [options]
+ * @returns {Promise<string>}
+ */
+/**
+ * @returns {string}
+ */
+export function buildArticleMetadataPrompt() {
+  return `Eres un asistente que extrae metadatos de artículos web.
+Analiza el contenido y responde SIEMPRE en español con este formato exacto:
+
+TITULO:
+(título claro del artículo, sin nombre del sitio ni "Medium")
+
+AUTORES:
+(nombres o handles separados por comas; si el autor es de Medium usa @handle, nunca URLs)
+
+TEMAS:
+(al menos 3 temas o etiquetas relevantes separados por comas)`;
+}
+
+/**
+ * @param {string} raw
+ * @returns {{ title: string|null, authors: string[], topics: string[] }}
+ */
+export function parseArticleMetadataResponse(raw) {
+  const normalized = raw.replace(/\*\*/g, "").trim();
+  const titleMatch = normalized.match(
+    /TITULO:\s*([\s\S]*?)(?=\n\s*AUTORES:|\s*$)/i
+  );
+  const authorsMatch = normalized.match(
+    /AUTORES:\s*([\s\S]*?)(?=\n\s*TEMAS:|\s*$)/i
+  );
+  const topicsMatch = normalized.match(/TEMAS:\s*([\s\S]*)/i);
+
+  const title = titleMatch?.[1]?.trim() || null;
+  const authors = normalizeAuthors(
+    authorsMatch?.[1]
+      ?.split(/[,;\n]/)
+      .map((author) => author.trim())
+      .filter(Boolean) ?? []
+  );
+  const topics =
+    topicsMatch?.[1]
+      ?.split(/[,;\n]/)
+      .map((topic) => topic.trim())
+      .filter(Boolean) ?? [];
+
+  return { title, authors, topics };
+}
+
+/**
+ * @param {{ title: string|null, description: string|null, text: string, url: string, authors?: string[], topics?: string[], publishedAt?: string|null }} article
+ * @returns {Promise<string>}
+ */
+export async function extractArticleMetadataWithAi(article) {
+  const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL;
+  const model = process.env.OLLAMA_MODEL;
+  const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+  const userContent = formatArticleContextForAi(article);
+
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: buildArticleMetadataPrompt() },
+        { role: "user", content: userContent },
+      ],
+      stream: false,
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Ollama respondió con ${response.status} ${response.statusText}`
+    );
+  }
+
+  const data = await response.json();
+  const content = data.message?.content?.trim();
+
+  if (!content) {
+    throw new Error("Ollama devolvió una respuesta vacía");
+  }
+
+  return content;
+}
+
+/**
+ * @param {Error} error
+ * @param {string} url
+ */
+export function logOllamaMetadataError(error, url) {
+  logger.warn({ err: error, url }, "Failed to extract article metadata with Ollama");
+}
+
+export async function consolidateUserPreferences(
+  rawText,
+  { maxChars = 2000, force = false } = {}
+) {
+  const trimmed = rawText?.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const needsAi = force || trimmed.length > maxChars;
+  if (!needsAi) {
+    return trimmed;
+  }
+
+  if (!isOllamaEnabled()) {
+    return truncateText(trimmed, maxChars) ?? trimmed.slice(0, maxChars);
+  }
+
+  try {
+    const consolidated = await requestPreferencesConsolidation(trimmed, maxChars);
+    if (consolidated.length <= maxChars) {
+      return consolidated;
+    }
+
+    return truncateText(consolidated, maxChars) ?? consolidated.slice(0, maxChars);
+  } catch (error) {
+    logOllamaError(error, "user-preferences-consolidation");
+    return truncateText(trimmed, maxChars) ?? trimmed.slice(0, maxChars);
+  }
 }

@@ -1,9 +1,12 @@
 import jest from "jest-mock";
 import {
   buildOllamaResponseText,
+  buildPreferencesConsolidationPrompt,
   buildSystemPrompt,
+  consolidateUserPreferences,
   formatSummaryMessage,
   isOllamaEnabled,
+  parseArticleMetadataResponse,
   parseOllamaResponse,
   shouldNotifyOnOllamaError,
   summarizeAndRateArticle,
@@ -51,8 +54,7 @@ describe("Ollama Client", () => {
     beforeEach(() => {
       process.env.OLLAMA_BASE_URL = "http://localhost:11434";
       process.env.OLLAMA_MODEL = "llama3.2";
-      process.env.OLLAMA_USER_PREFERENCES =
-        "Me interesan los ensayos técnicos largos.";
+      delete process.env.OLLAMA_USER_PREFERENCES;
     });
 
     test("envía preferencias del usuario en el system prompt", async () => {
@@ -66,12 +68,15 @@ describe("Ollama Client", () => {
         }),
       });
 
-      const result = await summarizeAndRateArticle({
-        title: "Mi artículo",
-        description: "Una descripción",
-        text: "Contenido del artículo",
-        url: "https://example.com/post",
-      });
+      const result = await summarizeAndRateArticle(
+        {
+          title: "Mi artículo",
+          description: "Una descripción",
+          text: "Contenido del artículo",
+          url: "https://example.com/post",
+        },
+        { userPreferences: "Me interesan los ensayos técnicos largos." }
+      );
 
       expect(result).toContain("VALORACIÓN: 8/10");
       expect(fetch).toHaveBeenCalledWith(
@@ -157,9 +162,26 @@ describe("Ollama Client", () => {
 
   describe("buildSystemPrompt", () => {
     test("omite historial si no hay perfil de gustos", () => {
-      const prompt = buildSystemPrompt(null);
+      const prompt = buildSystemPrompt();
 
       expect(prompt).not.toContain("Historial real del usuario");
+    });
+
+    test("ignora OLLAMA_USER_PREFERENCES del entorno", () => {
+      process.env.OLLAMA_USER_PREFERENCES = "Preferencias globales";
+
+      const prompt = buildSystemPrompt({
+        userPreferences: "Me interesan cine y música",
+      });
+
+      expect(prompt).toContain("Me interesan cine y música");
+      expect(prompt).not.toContain("Preferencias globales");
+    });
+
+    test("usa texto por defecto si no hay preferencias del usuario", () => {
+      const prompt = buildSystemPrompt();
+
+      expect(prompt).toContain("Sin preferencias específicas definidas.");
     });
   });
 
@@ -265,6 +287,72 @@ describe("Ollama Client", () => {
 
       expect(message).toContain("📖 Resumen y valoración");
       expect(message).toContain("RESUMEN:\nHola");
+    });
+  });
+
+  describe("parseArticleMetadataResponse", () => {
+    test("extrae título, autores y topics", () => {
+      const parsed = parseArticleMetadataResponse(
+        "TITULO:\nCómo escalar microservicios\n\nAUTORES:\nhttps://medium.com/@tripadvisor-tech\n\nTEMAS:\nDevOps, arquitectura, escalabilidad"
+      );
+
+      expect(parsed.title).toBe("Cómo escalar microservicios");
+      expect(parsed.authors).toEqual(["@tripadvisor-tech"]);
+    });
+
+    test("ignora autores desconocido", () => {
+      const parsed = parseArticleMetadataResponse(
+        "TITULO:\nArtículo\n\nAUTORES:\ndesconocido\n\nTEMAS:\na, b, c"
+      );
+
+      expect(parsed.authors).toEqual([]);
+      expect(parsed.topics).toEqual(["a", "b", "c"]);
+    });
+  });
+
+  describe("consolidateUserPreferences", () => {
+    test("devuelve el texto sin cambios si cabe y no se fuerza", async () => {
+      const text = "Me interesan ensayos técnicos.";
+
+      await expect(consolidateUserPreferences(text)).resolves.toBe(text);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    test("usa Ollama al mezclar aunque el texto sea corto", async () => {
+      process.env.OLLAMA_ENABLED = "true";
+      process.env.OLLAMA_BASE_URL = "http://localhost:11434";
+      process.env.OLLAMA_MODEL = "llama3.2";
+
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          message: { content: "Me interesan cine, música y desarrollo." },
+        }),
+      });
+
+      const result = await consolidateUserPreferences(
+        "Me interesan cine.\nMe interesan música y desarrollo.",
+        { force: true }
+      );
+
+      expect(result).toBe("Me interesan cine, música y desarrollo.");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    test("trunca sin IA si el texto es largo y Ollama está deshabilitado", async () => {
+      delete process.env.OLLAMA_ENABLED;
+
+      const longText = "a".repeat(2500);
+      const result = await consolidateUserPreferences(longText, { maxChars: 2000 });
+
+      expect(result.length).toBeLessThanOrEqual(2001);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("buildPreferencesConsolidationPrompt", () => {
+    test("incluye el límite de caracteres", () => {
+      expect(buildPreferencesConsolidationPrompt(2000)).toContain("2000");
     });
   });
 
