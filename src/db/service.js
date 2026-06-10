@@ -398,6 +398,7 @@ export async function listUserArticlesWithDetails(supabase, user_id) {
     .from("user_articles")
     .select(
       `
+      id,
       article_id,
       ai_summary,
       ai_rating,
@@ -450,6 +451,90 @@ export async function updateArticleMetadata(supabase, articleId, metadata) {
   }
 
   return { success: true, article: data };
+}
+
+/**
+ * Fetches the user's taste preferences prompt.
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @returns {Promise<string|null>}
+ */
+export async function getUserPreferences(supabase, user_id) {
+  try {
+    const { data, error } = await supabase
+      .from("user_preferences")
+      .select("preferences_text")
+      .eq("user_id", user_id)
+      .single();
+
+    if (error || !data?.preferences_text) {
+      return null;
+    }
+
+    return data.preferences_text.trim() || null;
+  } catch (error) {
+    console.error("Error al obtener preferencias del usuario:", error);
+    return null;
+  }
+}
+
+/**
+ * Saves or updates the user's taste preferences prompt.
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @param {string} preferencesText
+ * @returns {Promise<{ success: boolean, error?: any }>}
+ */
+export async function upsertUserPreferences(
+  supabase,
+  user_id,
+  preferencesText
+) {
+  const now = new Date().toISOString();
+
+  try {
+    const { error } = await supabase.from("user_preferences").upsert(
+      {
+        user_id,
+        preferences_text: preferencesText.trim(),
+        updated_at: now,
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al guardar preferencias del usuario:", error);
+    return { success: false, error };
+  }
+}
+
+/**
+ * Removes the user's taste preferences prompt.
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @returns {Promise<{ success: boolean, error?: any }>}
+ */
+export async function deleteUserPreferences(supabase, user_id) {
+  try {
+    const { error } = await supabase
+      .from("user_preferences")
+      .delete()
+      .eq("user_id", user_id);
+
+    if (error) {
+      return { success: false, error };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar preferencias del usuario:", error);
+    return { success: false, error };
+  }
 }
 
 export async function getUserHighRatedArticles(

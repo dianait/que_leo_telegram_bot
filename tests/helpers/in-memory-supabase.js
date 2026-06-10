@@ -17,6 +17,7 @@ export function createInMemorySupabase() {
   const articlesById = new Map();
   const userArticles = new Map();
   const telegramUsersByUserId = new Map();
+  const userPreferencesByUserId = new Map();
 
   function getArticleRows() {
     return [...articlesByUrl.values()];
@@ -240,11 +241,60 @@ export function createInMemorySupabase() {
     };
   }
 
+  function userPreferencesTable() {
+    return {
+      upsert(payload) {
+        return {
+          then: (resolve) => {
+            userPreferencesByUserId.set(payload.user_id, { ...payload });
+            resolve({ error: null });
+          },
+        };
+      },
+
+      select: (columns) => ({
+        eq: (column, value) => ({
+          single: async () => {
+            const rows = [...userPreferencesByUserId.values()].filter((row) =>
+              matchFilter(row, column, value)
+            );
+
+            if (rows.length === 0) {
+              return { data: null, error: { message: "not found" } };
+            }
+
+            if (typeof columns === "string" && columns !== "*") {
+              const fields = columns.split(",").map((field) => field.trim());
+              const projected = Object.fromEntries(
+                fields.map((field) => [field, rows[0][field]])
+              );
+              return { data: projected, error: null };
+            }
+
+            return { data: rows[0], error: null };
+          },
+        }),
+      }),
+
+      delete: () => ({
+        eq: async (column, value) => {
+          for (const [key, row] of userPreferencesByUserId.entries()) {
+            if (matchFilter(row, column, value)) {
+              userPreferencesByUserId.delete(key);
+            }
+          }
+          return { error: null };
+        },
+      }),
+    };
+  }
+
   return {
     from(table) {
       if (table === "articles") return articlesTable();
       if (table === "user_articles") return userArticlesTable();
       if (table === "telegram_users") return telegramUsersTable();
+      if (table === "user_preferences") return userPreferencesTable();
       throw new Error(`Unexpected table access: ${table}`);
     },
 
@@ -253,6 +303,7 @@ export function createInMemorySupabase() {
       articlesById.clear();
       userArticles.clear();
       telegramUsersByUserId.clear();
+      userPreferencesByUserId.clear();
       nextId = 1;
     },
   };
