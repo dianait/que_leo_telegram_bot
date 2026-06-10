@@ -83,12 +83,18 @@ ${tasteProfile}
 Preferencias del usuario:
 ${preferences}
 ${tasteSection}
-Criterios para VALORACIÓN y RAZÓN (obligatorio):
-- Valora solo el CONTENIDO: profundidad, calidad técnica, claridad, originalidad y encaje con los temas que interesan al usuario.
-- La RAZÓN debe explicar por qué el contenido encaja o no con esos gustos (tema, nivel, profundidad, estilo).
+Criterios para VALORACIÓN (obligatorio):
+- Valora solo el CONTENIDO: profundidad, calidad técnica, claridad, originalidad y relación con los temas que interesan al usuario.
 - NO uses como motivo de la nota: membresías, paywalls, Medium Partner, suscripciones, acceso de pago, si el texto está truncado o si no pudiste leerlo entero.
 - Ignora barreras de acceso; asume que el usuario puede leer el artículo si le interesa.
-- Usa los metadatos (fuente, autor, longitud, profundidad) como contexto para la valoración, no como excusa.
+
+Criterios para la RAZÓN (obligatorio):
+- Una sola línea, máximo 15 palabras, en español.
+- Di qué ofrece el artículo y por qué merece la nota: tema concreto, enfoque, profundidad, utilidad o estilo.
+- Escribe sobre el contenido, no sobre el lector ni sus preferencias.
+- PROHIBIDO: "encaja con tus gustos", "cumple los requisitos", "relevante para el lector", "alineado con tus preferencias", "te gustará si...", o cualquier frase meta sobre el lector.
+- Bueno: "Ensayo técnico sobre caché con ejemplos de sistemas reales."
+- Malo: "Este artículo cumple los requisitos del lector."
 
 Responde SIEMPRE en español con este formato exacto:
 RESUMEN:
@@ -96,7 +102,7 @@ RESUMEN:
 
 VALORACIÓN: X/10
 RAZÓN:
-(una sola línea breve, máximo 15 palabras; solo calidad y encaje temático con las preferencias del usuario)`;
+(una línea concreta sobre el contenido del artículo)`;
 }
 
 /**

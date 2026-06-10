@@ -139,7 +139,8 @@ describe("Ollama Client", () => {
 
       expect(systemPrompt).toContain("NO uses como motivo");
       expect(systemPrompt).toContain("membresías");
-      expect(systemPrompt).toContain("solo calidad y encaje temático");
+      expect(systemPrompt).toContain("cumple los requisitos");
+      expect(systemPrompt).toContain("sobre el contenido del artículo");
     });
 
     test("lanza error si Ollama responde con error HTTP", async () => {
