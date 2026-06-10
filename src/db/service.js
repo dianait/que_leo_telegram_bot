@@ -256,7 +256,42 @@ async function upsertUserArticleRelation(
 
   if (relError) return { success: false, error: relError };
 
+  scheduleAiRatingIfNeeded(supabase, user_id, articleResult, userArticle);
+
   return { success: true, article: articleResult, relation: userArticle };
+}
+
+/**
+ * @param {SupabaseClient} supabase
+ * @param {string} user_id
+ * @param {Object} article
+ * @param {Object} relation
+ */
+function scheduleAiRatingIfNeeded(supabase, user_id, article, relation) {
+  if (!article?.url || !relation || process.env.NODE_ENV === "test") {
+    return;
+  }
+
+  void import("../ai/rate-user-article.js")
+    .then(async ({ scheduleRateUserArticle }) => {
+      const { isOllamaEnabled } = await import("../ai/ollama-client.js");
+      const { needsAiBackfill } = await import("../jobs/backfill-helpers.js");
+
+      if (!isOllamaEnabled() || !needsAiBackfill(relation)) {
+        return;
+      }
+
+      scheduleRateUserArticle({
+        supabase,
+        userId: user_id,
+        articleId: article.id,
+        url: article.url,
+        skipExistingCheck: true,
+      });
+    })
+    .catch((error) => {
+      console.error("Error scheduling AI rating:", error);
+    });
 }
 
 /**

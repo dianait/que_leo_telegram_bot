@@ -6,109 +6,76 @@ describe("sendArticleSummary", () => {
     sendMessage: jest.fn().mockResolvedValue(undefined),
   };
 
-  const fetchArticleContent = jest.fn();
+  const rateUserArticle = jest.fn();
   const isOllamaEnabled = jest.fn();
-  const summarizeAndRateArticle = jest.fn();
-  const formatSummaryMessage = jest.fn(
-    (text) => `📖 Resumen y valoración\n\n${text}`
-  );
-  const parseOllamaResponse = jest.fn();
-  const saveUserArticleAiRating = jest.fn();
-  const getUserHighRatedArticles = jest.fn();
-  const getUserPreferences = jest.fn();
-  const buildTasteProfileFromHistory = jest.fn();
-  const formatTasteProfileForPrompt = jest.fn();
-  const getHistoryMinRating = jest.fn();
-  const getHistoryMaxArticles = jest.fn();
   const logOllamaError = jest.fn();
   const shouldNotifyOnOllamaError = jest.fn();
 
   const deps = {
-    fetchArticleContent,
+    rateUserArticle,
     isOllamaEnabled,
-    summarizeAndRateArticle,
-    parseOllamaResponse,
-    formatSummaryMessage,
-    saveUserArticleAiRating,
-    getUserHighRatedArticles,
-    getUserPreferences,
-    buildTasteProfileFromHistory,
-    formatTasteProfileForPrompt,
-    getHistoryMinRating,
-    getHistoryMaxArticles,
     logOllamaError,
     shouldNotifyOnOllamaError,
+    buildOllamaResponseText: ({ summary, rating, reason }) =>
+      [summary, rating != null ? `VALORACIÓN: ${rating}/10` : null, reason]
+        .filter(Boolean)
+        .join("\n\n"),
+    formatSummaryMessage: (text) => `📖 Resumen y valoración\n\n${text}`,
   };
 
   beforeEach(() => {
     bot.sendMessage.mockClear();
-    fetchArticleContent.mockClear();
+    rateUserArticle.mockClear();
     isOllamaEnabled.mockClear();
-    summarizeAndRateArticle.mockClear();
-    parseOllamaResponse.mockClear();
-    formatSummaryMessage.mockClear();
-    saveUserArticleAiRating.mockClear();
-    getUserHighRatedArticles.mockClear();
-    getUserPreferences.mockClear();
-    buildTasteProfileFromHistory.mockClear();
-    formatTasteProfileForPrompt.mockClear();
-    getHistoryMinRating.mockClear();
-    getHistoryMaxArticles.mockClear();
     logOllamaError.mockClear();
     shouldNotifyOnOllamaError.mockClear();
 
     isOllamaEnabled.mockReturnValue(true);
     shouldNotifyOnOllamaError.mockReturnValue(true);
-    getHistoryMinRating.mockReturnValue(7);
-    getHistoryMaxArticles.mockReturnValue(15);
-    getUserHighRatedArticles.mockResolvedValue([]);
-    getUserPreferences.mockResolvedValue(null);
-    buildTasteProfileFromHistory.mockReturnValue({ totalArticles: 0 });
-    formatTasteProfileForPrompt.mockReturnValue(null);
-    parseOllamaResponse.mockReturnValue({
-      summary: "Muy interesante.",
-      rating: 9,
-      reason: "Encaja con tus gustos.",
+    rateUserArticle.mockResolvedValue({
+      success: true,
+      parsed: {
+        summary: "Muy interesante.",
+        rating: 9,
+        reason: "Ensayo técnico con ejemplos claros.",
+      },
     });
-    saveUserArticleAiRating.mockResolvedValue({ success: true });
-    fetchArticleContent.mockResolvedValue({
-      title: "Artículo de prueba",
-      description: "Descripción corta",
-      text: "Contenido largo del artículo",
-      authors: ["Autor"],
-      topics: ["Swift"],
-      publishedAt: "2026-01-01T00:00:00.000Z",
-      url: "https://example.com/post",
-    });
-    summarizeAndRateArticle.mockResolvedValue(
-      "RESUMEN:\nMuy interesante.\n\nVALORACIÓN: 9/10\nRAZÓN:\nEncaja con tus gustos."
-    );
   });
 
   test("no hace nada si Ollama está deshabilitado", async () => {
     isOllamaEnabled.mockReturnValue(false);
 
-    await sendArticleSummary(bot, 123, "https://example.com/post", deps);
+    await sendArticleSummary(bot, 123, "https://example.com/post", {
+      supabase: {},
+      userId: "user-1",
+      articleId: "article-1",
+      ...deps,
+    });
 
-    expect(fetchArticleContent).not.toHaveBeenCalled();
+    expect(rateUserArticle).not.toHaveBeenCalled();
     expect(bot.sendMessage).not.toHaveBeenCalled();
   });
 
   test("envía resumen y valoración por Telegram", async () => {
-    await sendArticleSummary(bot, 123, "https://example.com/post", deps);
+    await sendArticleSummary(bot, 123, "https://example.com/post", {
+      supabase: {},
+      userId: "user-1",
+      articleId: "article-1",
+      ...deps,
+    });
 
-    expect(fetchArticleContent).toHaveBeenCalledWith("https://example.com/post");
-    expect(summarizeAndRateArticle).toHaveBeenCalledWith(
+    expect(rateUserArticle).toHaveBeenCalledWith(
       {
-        title: "Artículo de prueba",
-        description: "Descripción corta",
-        text: "Contenido largo del artículo",
-        authors: ["Autor"],
-        topics: ["Swift"],
-        publishedAt: "2026-01-01T00:00:00.000Z",
+        supabase: {},
+        userId: "user-1",
+        articleId: "article-1",
         url: "https://example.com/post",
       },
-      { tasteProfile: null, userPreferences: null }
+      expect.objectContaining({
+        isOllamaEnabled,
+        logOllamaError,
+        shouldNotifyOnOllamaError,
+      })
     );
     expect(bot.sendMessage).toHaveBeenCalledWith(
       123,
@@ -116,99 +83,46 @@ describe("sendArticleSummary", () => {
     );
   });
 
-  test("notifica error si Ollama falla", async () => {
-    const error = new Error("Ollama caído");
-    summarizeAndRateArticle.mockRejectedValueOnce(error);
+  test("notifica error si la valoración falla", async () => {
+    rateUserArticle.mockResolvedValueOnce({
+      success: false,
+      error: "Ollama caído",
+    });
 
-    await sendArticleSummary(bot, 123, "https://example.com/post", deps);
+    await sendArticleSummary(bot, 123, "https://example.com/post", {
+      supabase: {},
+      userId: "user-1",
+      articleId: "article-1",
+      ...deps,
+    });
 
-    expect(logOllamaError).toHaveBeenCalledWith(error, "https://example.com/post");
+    expect(logOllamaError).toHaveBeenCalled();
     expect(bot.sendMessage).toHaveBeenCalledWith(
       123,
       "⚠️ No pude generar el resumen (Ollama no disponible)."
     );
   });
 
-  test("carga historial del usuario antes de valorar", async () => {
-    const supabase = {};
-    formatTasteProfileForPrompt.mockReturnValue("- Temas recurrentes: Swift (2)");
-
-    await sendArticleSummary(bot, 123, "https://example.com/post", {
-      supabase,
-      userId: "user-1",
-      articleId: "article-1",
-      ...deps,
-    });
-
-    expect(getUserHighRatedArticles).toHaveBeenCalledWith(supabase, "user-1", {
-      excludeArticleId: "article-1",
-      minRating: 7,
-      limit: 15,
-    });
-    expect(getUserPreferences).toHaveBeenCalledWith(supabase, "user-1");
-    expect(summarizeAndRateArticle).toHaveBeenCalledWith(
-      expect.any(Object),
-      {
-        tasteProfile: "- Temas recurrentes: Swift (2)",
-        userPreferences: null,
-      }
-    );
-  });
-
-  test("pasa preferencias del usuario a Ollama", async () => {
-    const supabase = {};
-    getUserPreferences.mockResolvedValue("Me interesan ensayos técnicos");
-
-    await sendArticleSummary(bot, 123, "https://example.com/post", {
-      supabase,
-      userId: "user-1",
-      articleId: "article-1",
-      ...deps,
-    });
-
-    expect(summarizeAndRateArticle).toHaveBeenCalledWith(
-      expect.any(Object),
-      {
-        tasteProfile: null,
-        userPreferences: "Me interesan ensayos técnicos",
-      }
-    );
-  });
-
-  test("guarda valoración en base de datos cuando hay contexto de usuario", async () => {
-    const supabase = {};
-
-    await sendArticleSummary(bot, 123, "https://example.com/post", {
-      supabase,
-      userId: "user-1",
-      articleId: "article-1",
-      ...deps,
-    });
-
-    expect(parseOllamaResponse).toHaveBeenCalled();
-    expect(saveUserArticleAiRating).toHaveBeenCalledWith(
-      supabase,
-      "user-1",
-      "article-1",
-      {
-        ai_summary: "Muy interesante.",
-        ai_rating: 9,
-        ai_rating_reason: "Encaja con tus gustos.",
-      }
-    );
-  });
-
-  test("no guarda en base de datos si faltan ids", async () => {
+  test("no hace nada sin contexto de usuario", async () => {
     await sendArticleSummary(bot, 123, "https://example.com/post", deps);
 
-    expect(saveUserArticleAiRating).not.toHaveBeenCalled();
+    expect(rateUserArticle).not.toHaveBeenCalled();
+    expect(bot.sendMessage).not.toHaveBeenCalled();
   });
 
   test("no notifica error si OLLAMA_NOTIFY_ON_ERROR es false", async () => {
     shouldNotifyOnOllamaError.mockReturnValue(false);
-    summarizeAndRateArticle.mockRejectedValueOnce(new Error("timeout"));
+    rateUserArticle.mockResolvedValueOnce({
+      success: false,
+      error: "timeout",
+    });
 
-    await sendArticleSummary(bot, 123, "https://example.com/post", deps);
+    await sendArticleSummary(bot, 123, "https://example.com/post", {
+      supabase: {},
+      userId: "user-1",
+      articleId: "article-1",
+      ...deps,
+    });
 
     expect(bot.sendMessage).not.toHaveBeenCalled();
   });

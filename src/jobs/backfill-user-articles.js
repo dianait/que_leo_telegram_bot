@@ -1,28 +1,18 @@
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import {
-  buildTasteProfileFromHistory,
-  formatTasteProfileForPrompt,
-  getHistoryMaxArticles,
-  getHistoryMinRating,
-} from "../ai/user-taste-profile.js";
+import { rateUserArticle } from "../ai/rate-user-article.js";
 import {
   extractArticleMetadataWithAi,
   isOllamaEnabled,
   logOllamaMetadataError,
   parseArticleMetadataResponse,
-  parseOllamaResponse,
-  summarizeAndRateArticle,
 } from "../ai/ollama-client.js";
 import {
   fetchAndExtractMetadata,
   fetchArticleContent,
 } from "../extractors/article-extractor.js";
 import {
-  getUserHighRatedArticles,
-  getUserPreferences,
   listUserArticlesWithDetails,
-  saveUserArticleAiRating,
   updateArticleMetadata,
 } from "../db/service.js";
 import { logger } from "../utils/logger.js";
@@ -45,25 +35,6 @@ function sleep(ms) {
 }
 
 /**
- * @param {object} deps
- * @param {object} supabase
- * @param {string} userId
- * @param {string|number} articleId
- * @returns {Promise<string|null>}
- */
-async function loadTasteProfile(deps, supabase, userId, articleId) {
-  const history = await deps.getUserHighRatedArticles(supabase, userId, {
-    excludeArticleId: articleId,
-    minRating: deps.getHistoryMinRating(),
-    limit: deps.getHistoryMaxArticles(),
-  });
-
-  return deps.formatTasteProfileForPrompt(
-    deps.buildTasteProfileFromHistory(history)
-  );
-}
-
-/**
  * @param {object} params
  * @returns {Promise<{ metadataUpdated: boolean, aiUpdated: boolean, skipped: boolean, error?: string }>}
  */
@@ -75,6 +46,7 @@ export async function backfillUserArticle(
     dryRun = false,
     skipMetadata = false,
     skipAi = false,
+    forceAi = false,
   },
   deps
 ) {
@@ -156,46 +128,27 @@ export async function backfillUserArticle(
     }
   }
 
-  if (!skipAi && deps.isOllamaEnabled() && needsAiBackfill(row)) {
-    try {
-      const [tasteProfile, userPreferences] = await Promise.all([
-        loadTasteProfile(deps, supabase, userId, row.article_id),
-        deps.getUserPreferences(supabase, userId),
-      ]);
-      const content = await deps.fetchArticleContent(article.url);
-      const rawSummary = await deps.summarizeAndRateArticle(content, {
-        tasteProfile,
-        userPreferences,
-      });
-      const parsed = deps.parseOllamaResponse(rawSummary);
-
-      if (!parsed.summary && parsed.rating == null) {
-        errors.push("No se pudo parsear la respuesta de Ollama");
-      } else if (dryRun) {
-        console.log(
-          `  [dry-run] IA → rating=${parsed.rating}, summary=${parsed.summary?.slice(0, 60)}...`
-        );
-        aiUpdated = true;
-      } else {
-        const result = await deps.saveUserArticleAiRating(
+  if (!skipAi && deps.isOllamaEnabled() && (forceAi || needsAiBackfill(row))) {
+    if (dryRun) {
+      console.log(`  [dry-run] IA → se valoraría ${article.url}`);
+      aiUpdated = true;
+    } else {
+      const result = await deps.rateUserArticle(
+        {
           supabase,
           userId,
-          row.article_id,
-          {
-            ai_summary: parsed.summary,
-            ai_rating: parsed.rating,
-            ai_rating_reason: parsed.reason,
-          }
-        );
+          articleId: row.article_id,
+          url: article.url,
+          force: forceAi,
+        },
+        deps
+      );
 
-        if (!result.success) {
-          errors.push(`ai: ${result.error?.message ?? "unknown"}`);
-        } else {
-          aiUpdated = true;
-        }
+      if (!result.success) {
+        errors.push(`ai: ${result.error ?? "unknown"}`);
+      } else if (!result.skipped) {
+        aiUpdated = true;
       }
-    } catch (error) {
-      errors.push(`ai: ${error.message}`);
     }
   }
 
@@ -219,6 +172,7 @@ export async function backfillUserArticles(
     dryRun = false,
     skipMetadata = false,
     skipAi = false,
+    forceAi = false,
     delayMs = DEFAULT_DELAY_MS,
     userArticleIds = null,
   },
@@ -252,7 +206,10 @@ export async function backfillUserArticles(
   for (const row of rows) {
     const article = row.articles;
     const needsMeta = !skipMetadata && needsMetadataBackfill(article);
-    const needsAi = !skipAi && deps.isOllamaEnabled() && needsAiBackfill(row);
+    const needsAi =
+      !skipAi &&
+      deps.isOllamaEnabled() &&
+      (forceAi || needsAiBackfill(row));
 
     if (!needsMeta && !needsAi) {
       continue;
@@ -265,7 +222,7 @@ export async function backfillUserArticles(
 
     try {
       const result = await backfillUserArticle(
-        { supabase, userId, row, dryRun, skipMetadata, skipAi },
+        { supabase, userId, row, dryRun, skipMetadata, skipAi, forceAi },
         deps
       );
 
@@ -300,17 +257,9 @@ const defaultDeps = {
   extractArticleMetadataWithAi,
   parseArticleMetadataResponse,
   logOllamaMetadataError,
-  summarizeAndRateArticle,
-  parseOllamaResponse,
+  rateUserArticle,
   listUserArticlesWithDetails,
   updateArticleMetadata,
-  saveUserArticleAiRating,
-  getUserHighRatedArticles,
-  getUserPreferences,
-  buildTasteProfileFromHistory,
-  formatTasteProfileForPrompt,
-  getHistoryMinRating,
-  getHistoryMaxArticles,
 };
 
 function parseArgs(argv) {
@@ -328,6 +277,7 @@ function parseArgs(argv) {
     dryRun: argv.includes("--dry-run"),
     skipMetadata: argv.includes("--skip-metadata"),
     skipAi: argv.includes("--skip-ai"),
+    forceAi: argv.includes("--force-ai"),
     delayMs: delayArg ? Number(delayArg.split("=")[1]) : DEFAULT_DELAY_MS,
     userArticleIds: userArticleIdsArg
       ? userArticleIdsArg
@@ -340,7 +290,7 @@ function parseArgs(argv) {
 }
 
 async function main() {
-  const { userId, dryRun, skipMetadata, skipAi, delayMs, userArticleIds } =
+  const { userId, dryRun, skipMetadata, skipAi, forceAi, delayMs, userArticleIds } =
     parseArgs(process.argv.slice(2));
 
   if (!userId) {
@@ -367,6 +317,7 @@ async function main() {
     dryRun,
     skipMetadata,
     skipAi,
+    forceAi,
     delayMs,
     userArticleIds,
   });
