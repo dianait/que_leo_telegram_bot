@@ -16,6 +16,7 @@ import {
 } from "../ai/ollama-client.js";
 import {
   getUserHighRatedArticles,
+  getUserPreferences,
   saveUserArticleAiRating,
 } from "../db/service.js";
 import { logger } from "../utils/logger.js";
@@ -31,6 +32,7 @@ const defaultDeps = {
   shouldNotifyOnOllamaError,
   saveUserArticleAiRating,
   getUserHighRatedArticles,
+  getUserPreferences,
   buildTasteProfileFromHistory,
   formatTasteProfileForPrompt,
   getHistoryMinRating,
@@ -57,6 +59,16 @@ async function loadTasteProfile(deps, supabase, userId, articleId) {
 }
 
 /**
+ * @param {typeof defaultDeps} deps
+ * @param {object} supabase
+ * @param {string} userId
+ * @returns {Promise<string|null>}
+ */
+async function loadUserPreferences(deps, supabase, userId) {
+  return deps.getUserPreferences(supabase, userId);
+}
+
+/**
  * Genera y envía por Telegram un resumen y valoración del artículo (async).
  * @param {import("node-telegram-bot-api")} bot
  * @param {number} chatId
@@ -73,13 +85,17 @@ export async function sendArticleSummary(bot, chatId, url, options = {}) {
 
   try {
     const article = await deps.fetchArticleContent(url);
-    const tasteProfile =
+    const [tasteProfile, userPreferences] =
       supabase && userId
-        ? await loadTasteProfile(deps, supabase, userId, articleId)
-        : null;
+        ? await Promise.all([
+            loadTasteProfile(deps, supabase, userId, articleId),
+            loadUserPreferences(deps, supabase, userId),
+          ])
+        : [null, null];
 
     const rawSummary = await deps.summarizeAndRateArticle(article, {
       tasteProfile,
+      userPreferences,
     });
 
     const parsed = deps.parseOllamaResponse(rawSummary);

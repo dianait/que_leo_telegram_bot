@@ -15,6 +15,7 @@ describe("sendArticleSummary", () => {
   const parseOllamaResponse = jest.fn();
   const saveUserArticleAiRating = jest.fn();
   const getUserHighRatedArticles = jest.fn();
+  const getUserPreferences = jest.fn();
   const buildTasteProfileFromHistory = jest.fn();
   const formatTasteProfileForPrompt = jest.fn();
   const getHistoryMinRating = jest.fn();
@@ -30,6 +31,7 @@ describe("sendArticleSummary", () => {
     formatSummaryMessage,
     saveUserArticleAiRating,
     getUserHighRatedArticles,
+    getUserPreferences,
     buildTasteProfileFromHistory,
     formatTasteProfileForPrompt,
     getHistoryMinRating,
@@ -47,6 +49,7 @@ describe("sendArticleSummary", () => {
     formatSummaryMessage.mockClear();
     saveUserArticleAiRating.mockClear();
     getUserHighRatedArticles.mockClear();
+    getUserPreferences.mockClear();
     buildTasteProfileFromHistory.mockClear();
     formatTasteProfileForPrompt.mockClear();
     getHistoryMinRating.mockClear();
@@ -59,6 +62,7 @@ describe("sendArticleSummary", () => {
     getHistoryMinRating.mockReturnValue(7);
     getHistoryMaxArticles.mockReturnValue(15);
     getUserHighRatedArticles.mockResolvedValue([]);
+    getUserPreferences.mockResolvedValue(null);
     buildTasteProfileFromHistory.mockReturnValue({ totalArticles: 0 });
     formatTasteProfileForPrompt.mockReturnValue(null);
     parseOllamaResponse.mockReturnValue({
@@ -104,7 +108,7 @@ describe("sendArticleSummary", () => {
         publishedAt: "2026-01-01T00:00:00.000Z",
         url: "https://example.com/post",
       },
-      { tasteProfile: null }
+      { tasteProfile: null, userPreferences: null }
     );
     expect(bot.sendMessage).toHaveBeenCalledWith(
       123,
@@ -141,9 +145,33 @@ describe("sendArticleSummary", () => {
       minRating: 7,
       limit: 15,
     });
+    expect(getUserPreferences).toHaveBeenCalledWith(supabase, "user-1");
     expect(summarizeAndRateArticle).toHaveBeenCalledWith(
       expect.any(Object),
-      { tasteProfile: "- Temas recurrentes: Swift (2)" }
+      {
+        tasteProfile: "- Temas recurrentes: Swift (2)",
+        userPreferences: null,
+      }
+    );
+  });
+
+  test("pasa preferencias del usuario a Ollama", async () => {
+    const supabase = {};
+    getUserPreferences.mockResolvedValue("Me interesan ensayos técnicos");
+
+    await sendArticleSummary(bot, 123, "https://example.com/post", {
+      supabase,
+      userId: "user-1",
+      articleId: "article-1",
+      ...deps,
+    });
+
+    expect(summarizeAndRateArticle).toHaveBeenCalledWith(
+      expect.any(Object),
+      {
+        tasteProfile: null,
+        userPreferences: "Me interesan ensayos técnicos",
+      }
     );
   });
 
