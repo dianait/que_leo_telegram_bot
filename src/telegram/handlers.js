@@ -16,9 +16,16 @@ import {
   handleValidationError,
 } from "../utils/error-handler.js";
 import { checkRateLimit } from "./rate-limiter.js";
+import { normalizeAuthors } from "../utils/author-normalizer.js";
 import { extractFirstUrl } from "../utils/validators.js";
 import { logger } from "../utils/logger.js";
 import { sendArticleSummary } from "./article-summary.js";
+import {
+  GUSTOS_COMMAND_REGEX,
+  handlePendingPreferencesMessage,
+  isWizardActive,
+  registerGustosHandler,
+} from "./gustos-handler.js";
 
 /**
  * Registra los handlers de Telegram en el bot
@@ -26,6 +33,8 @@ import { sendArticleSummary } from "./article-summary.js";
  * @param {SupabaseClient} supabase
  */
 export function registerTelegramHandlers(bot, supabase) {
+  registerGustosHandler(bot, supabase);
+
   // Vinculación de usuario con /start <user_id>
   bot.onText(/^\/start(?:\s+)?([a-zA-Z0-9-]+)?/, async (msg, match) => {
     const chatId = msg.chat.id;
@@ -95,8 +104,14 @@ export function registerTelegramHandlers(bot, supabase) {
 
     logger.debug({ chatId }, "Processing incoming message");
 
-    // Ignora el mensaje /start con user_id (ya gestionado arriba)
-    if (text && text.startsWith("/start")) return;
+    // Comandos gestionados por onText (evita respuestas duplicadas)
+    if (text && (text.startsWith("/start") || GUSTOS_COMMAND_REGEX.test(text))) {
+      return;
+    }
+
+    if (text && (await handlePendingPreferencesMessage(bot, supabase, chatId, text))) {
+      return;
+    }
 
     try {
       // Busca el user_id vinculado a este chat
@@ -146,7 +161,7 @@ export function registerTelegramHandlers(bot, supabase) {
             url: urlExtraida,
             title,
             language,
-            authors,
+            authors: normalizeAuthors(authors),
             topics,
             featured_image: featuredimage,
             // Puedes añadir aquí otros campos como less_15 si lo necesitas
@@ -191,7 +206,7 @@ export function registerTelegramHandlers(bot, supabase) {
             handleError(error, chatId, bot, "metadata-extraction");
           }
         }
-      } else {
+      } else if (!isWizardActive(chatId)) {
         bot.sendMessage(chatId, "Envíame un enlace para guardarlo.");
       }
     } catch (error) {

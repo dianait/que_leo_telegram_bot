@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 import { registerTelegramHandlers } from "./src/telegram/handlers.js";
 import { cleanupRateLimiter } from "./src/telegram/rate-limiter.js";
+import { cleanupPreferencesState } from "./src/telegram/preferences-state.js";
 import { startWebServer } from "./src/web/server.js";
 import { isOllamaEnabled } from "./src/ai/ollama-client.js";
 dotenv.config();
@@ -38,10 +39,10 @@ const server = startWebServer();
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 const RATE_LIMITER_CLEANUP_MS = 5 * 60 * 1000;
-const rateLimiterCleanupInterval = setInterval(
-  cleanupRateLimiter,
-  RATE_LIMITER_CLEANUP_MS
-);
+const rateLimiterCleanupInterval = setInterval(() => {
+  cleanupRateLimiter();
+  cleanupPreferencesState();
+}, RATE_LIMITER_CLEANUP_MS);
 
 function shutdown(signal) {
   console.log(`\n${signal} recibido, cerrando servicios...`);
