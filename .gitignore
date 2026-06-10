@@ -13,5 +13,7 @@ build/
 .idea/
 .vscode/
 *.log
-scripts/ 
-.husky/ 
+scripts/
+.husky/
+ecosystem.config.cjs
+docs/windows-servicio.md
