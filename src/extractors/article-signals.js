@@ -137,7 +137,9 @@ export function buildArticleSignals(article) {
 export function formatArticleContextForAi(article) {
   const signals = buildArticleSignals(article);
   const authors =
-    signals.authors.length > 0 ? signals.authors.join(", ") : "desconocido";
+    signals.authors.length > 0
+      ? signals.authors.join(", ")
+      : "(sin autor identificado)";
 
   const metadataBlock = `Metadatos del artículo:
 - Fuente: ${signals.domain ?? "desconocida"}
