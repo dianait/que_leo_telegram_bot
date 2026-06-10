@@ -1,8 +1,15 @@
+import {
+  authorsNeedCleanup,
+  normalizeAuthors,
+} from "../utils/author-normalizer.js";
+
 const BAD_TITLE_PATTERNS = [
   /^just a moment/i,
   /^checking your browser/i,
   /^\(sin título\)$/i,
 ];
+
+export const MIN_TOPICS = 3;
 
 /**
  * @param {string|null|undefined} title
@@ -17,15 +24,23 @@ export function isMissingOrBadTitle(title) {
 }
 
 /**
+ * @param {string[]|null|undefined} topics
+ * @returns {boolean}
+ */
+export function needsTopicsBackfill(topics) {
+  return (topics?.length ?? 0) < MIN_TOPICS;
+}
+
+/**
  * @param {{ title?: string|null, authors?: string[]|null, language?: string|null, topics?: string[]|null, featured_image?: string|null }} article
  * @returns {boolean}
  */
 export function needsMetadataBackfill(article) {
   return (
     isMissingOrBadTitle(article.title) ||
-    !article.authors?.length ||
+    authorsNeedCleanup(article.authors) ||
     !article.language ||
-    !article.topics?.length ||
+    needsTopicsBackfill(article.topics) ||
     !article.featured_image
   );
 }
@@ -35,7 +50,11 @@ export function needsMetadataBackfill(article) {
  * @returns {boolean}
  */
 export function needsAiBackfill(userArticle) {
-  return userArticle.ai_rating == null || !userArticle.ai_summary;
+  return (
+    userArticle.ai_rating == null ||
+    !userArticle.ai_summary?.trim() ||
+    !userArticle.ai_rating_reason?.trim()
+  );
 }
 
 /**
@@ -46,18 +65,40 @@ export function needsAiBackfill(userArticle) {
 export function buildMetadataPatch(existing, fetched) {
   const patch = {};
 
-  if (isMissingOrBadTitle(existing.title) && fetched.title) {
+  if (
+    isMissingOrBadTitle(existing.title) &&
+    fetched.title &&
+    !isMissingOrBadTitle(fetched.title)
+  ) {
     patch.title = fetched.title;
   }
+
   if (!existing.language && fetched.language) {
     patch.language = fetched.language;
   }
-  if (!existing.authors?.length && fetched.authors?.length) {
-    patch.authors = fetched.authors;
+
+  const existingAuthors = existing.authors ?? [];
+  const resolvedAuthors = normalizeAuthors(
+    fetched.authors?.length ? fetched.authors : existingAuthors
+  );
+
+  if (!existingAuthors.length && resolvedAuthors.length) {
+    patch.authors = resolvedAuthors;
+  } else if (authorsNeedCleanup(existingAuthors)) {
+    patch.authors = resolvedAuthors;
   }
-  if (!existing.topics?.length && fetched.topics?.length) {
+
+  if (needsTopicsBackfill(existing.topics)) {
+    const merged = [
+      ...new Set([...(existing.topics ?? []), ...(fetched.topics ?? [])]),
+    ];
+    if (merged.length > (existing.topics?.length ?? 0)) {
+      patch.topics = merged;
+    }
+  } else if (!existing.topics?.length && fetched.topics?.length) {
     patch.topics = fetched.topics;
   }
+
   if (!existing.featured_image && fetched.featured_image) {
     patch.featured_image = fetched.featured_image;
   }
@@ -74,8 +115,8 @@ export function mapExtractedMetadata(metadata) {
   return {
     title: metadata.title ?? null,
     language: metadata.language ?? null,
-    authors: metadata.authors ?? [],
+    authors: normalizeAuthors(metadata.authors ?? []),
     topics: metadata.topics ?? [],
-    featured_image: metadata.featuredimage ?? null,
+    featured_image: metadata.featuredimage ?? metadata.featured_image ?? null,
   };
 }

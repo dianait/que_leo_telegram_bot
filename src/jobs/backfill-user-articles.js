@@ -7,7 +7,10 @@ import {
   getHistoryMinRating,
 } from "../ai/user-taste-profile.js";
 import {
+  extractArticleMetadataWithAi,
   isOllamaEnabled,
+  logOllamaMetadataError,
+  parseArticleMetadataResponse,
   parseOllamaResponse,
   summarizeAndRateArticle,
 } from "../ai/ollama-client.js";
@@ -17,6 +20,7 @@ import {
 } from "../extractors/article-extractor.js";
 import {
   getUserHighRatedArticles,
+  getUserPreferences,
   listUserArticlesWithDetails,
   saveUserArticleAiRating,
   updateArticleMetadata,
@@ -81,6 +85,8 @@ export async function backfillUserArticle(
 
   let metadataUpdated = false;
   let aiUpdated = false;
+  /** @type {string[]} */
+  const errors = [];
 
   if (!skipMetadata && needsMetadataBackfill(article)) {
     const extracted = mapExtractedMetadata(
@@ -90,7 +96,9 @@ export async function backfillUserArticle(
 
     if (patch) {
       if (dryRun) {
-        console.log(`  [dry-run] metadata → ${JSON.stringify(patch)}`);
+        console.log(`  [dry-run] metadata (web) → ${JSON.stringify(patch)}`);
+        Object.assign(article, patch);
+        metadataUpdated = true;
       } else {
         const result = await deps.updateArticleMetadata(
           supabase,
@@ -98,71 +106,105 @@ export async function backfillUserArticle(
           patch
         );
         if (!result.success) {
-          return {
-            metadataUpdated: false,
-            aiUpdated: false,
-            skipped: false,
-            error: `metadata: ${result.error?.message ?? "unknown"}`,
-          };
+          errors.push(`metadata: ${result.error?.message ?? "unknown"}`);
+        } else {
+          Object.assign(article, result.article);
+          metadataUpdated = true;
         }
-        Object.assign(article, result.article);
       }
-      metadataUpdated = true;
+    }
+
+    if (needsMetadataBackfill(article) && deps.isOllamaEnabled()) {
+      try {
+        const content = await deps.fetchArticleContent(article.url);
+        const rawMetadata = await deps.extractArticleMetadataWithAi(content);
+        const aiMetadata = deps.parseArticleMetadataResponse(rawMetadata);
+        const aiPatch = buildMetadataPatch(
+          article,
+          mapExtractedMetadata({
+            title: aiMetadata.title,
+            language: null,
+            authors: aiMetadata.authors,
+            topics: aiMetadata.topics,
+            featuredimage: null,
+          })
+        );
+
+        if (aiPatch) {
+          if (dryRun) {
+            console.log(`  [dry-run] metadata (IA) → ${JSON.stringify(aiPatch)}`);
+            Object.assign(article, aiPatch);
+            metadataUpdated = true;
+          } else {
+            const result = await deps.updateArticleMetadata(
+              supabase,
+              article.id,
+              aiPatch
+            );
+            if (!result.success) {
+              errors.push(`metadata-ia: ${result.error?.message ?? "unknown"}`);
+            } else {
+              Object.assign(article, result.article);
+              metadataUpdated = true;
+            }
+          }
+        }
+      } catch (error) {
+        deps.logOllamaMetadataError(error, article.url);
+        errors.push(`metadata-ia: ${error.message}`);
+      }
     }
   }
 
   if (!skipAi && deps.isOllamaEnabled() && needsAiBackfill(row)) {
-    const tasteProfile = await loadTasteProfile(
-      deps,
-      supabase,
-      userId,
-      row.article_id
-    );
-    const content = await deps.fetchArticleContent(article.url);
-    const rawSummary = await deps.summarizeAndRateArticle(content, {
-      tasteProfile,
-    });
-    const parsed = deps.parseOllamaResponse(rawSummary);
+    try {
+      const [tasteProfile, userPreferences] = await Promise.all([
+        loadTasteProfile(deps, supabase, userId, row.article_id),
+        deps.getUserPreferences(supabase, userId),
+      ]);
+      const content = await deps.fetchArticleContent(article.url);
+      const rawSummary = await deps.summarizeAndRateArticle(content, {
+        tasteProfile,
+        userPreferences,
+      });
+      const parsed = deps.parseOllamaResponse(rawSummary);
 
-    if (!parsed.summary && parsed.rating == null) {
-      return {
-        metadataUpdated,
-        aiUpdated: false,
-        skipped: false,
-        error: "No se pudo parsear la respuesta de Ollama",
-      };
-    }
+      if (!parsed.summary && parsed.rating == null) {
+        errors.push("No se pudo parsear la respuesta de Ollama");
+      } else if (dryRun) {
+        console.log(
+          `  [dry-run] IA → rating=${parsed.rating}, summary=${parsed.summary?.slice(0, 60)}...`
+        );
+        aiUpdated = true;
+      } else {
+        const result = await deps.saveUserArticleAiRating(
+          supabase,
+          userId,
+          row.article_id,
+          {
+            ai_summary: parsed.summary,
+            ai_rating: parsed.rating,
+            ai_rating_reason: parsed.reason,
+          }
+        );
 
-    if (dryRun) {
-      console.log(
-        `  [dry-run] IA → rating=${parsed.rating}, summary=${parsed.summary?.slice(0, 60)}...`
-      );
-    } else {
-      const result = await deps.saveUserArticleAiRating(
-        supabase,
-        userId,
-        row.article_id,
-        {
-          ai_summary: parsed.summary,
-          ai_rating: parsed.rating,
-          ai_rating_reason: parsed.reason,
+        if (!result.success) {
+          errors.push(`ai: ${result.error?.message ?? "unknown"}`);
+        } else {
+          aiUpdated = true;
         }
-      );
-
-      if (!result.success) {
-        return {
-          metadataUpdated,
-          aiUpdated: false,
-          skipped: false,
-          error: `ai: ${result.error?.message ?? "unknown"}`,
-        };
       }
+    } catch (error) {
+      errors.push(`ai: ${error.message}`);
     }
-
-    aiUpdated = true;
   }
 
-  return { metadataUpdated, aiUpdated, skipped: false };
+  return {
+    metadataUpdated,
+    aiUpdated,
+    skipped: false,
+    error: errors.length ? errors.join("; ") : undefined,
+  };
 }
 
 /**
@@ -178,6 +220,7 @@ export async function backfillUserArticles(
     skipMetadata = false,
     skipAi = false,
     delayMs = DEFAULT_DELAY_MS,
+    userArticleIds = null,
   },
   deps = defaultDeps
 ) {
@@ -195,7 +238,11 @@ export async function backfillUserArticles(
     errors: 0,
   };
 
-  const rows = list.rows.filter((row) => row.articles);
+  let rows = list.rows.filter((row) => row.articles);
+  if (userArticleIds?.length) {
+    const allowed = new Set(userArticleIds);
+    rows = rows.filter((row) => allowed.has(row.id));
+  }
   console.log(`Encontrados ${rows.length} artículos para el usuario ${userId}`);
 
   if (!skipAi && !deps.isOllamaEnabled()) {
@@ -213,7 +260,7 @@ export async function backfillUserArticles(
 
     stats.processed += 1;
     console.log(
-      `\n[${stats.processed}] ${article.title || article.url} (id=${article.id})`
+      `\n[${stats.processed}] ${article.title || article.url} (ua_id=${row.id}, article_id=${article.id})`
     );
 
     try {
@@ -250,12 +297,16 @@ const defaultDeps = {
   fetchAndExtractMetadata,
   fetchArticleContent,
   isOllamaEnabled,
+  extractArticleMetadataWithAi,
+  parseArticleMetadataResponse,
+  logOllamaMetadataError,
   summarizeAndRateArticle,
   parseOllamaResponse,
   listUserArticlesWithDetails,
   updateArticleMetadata,
   saveUserArticleAiRating,
   getUserHighRatedArticles,
+  getUserPreferences,
   buildTasteProfileFromHistory,
   formatTasteProfileForPrompt,
   getHistoryMinRating,
@@ -265,6 +316,9 @@ const defaultDeps = {
 function parseArgs(argv) {
   const userIdArg = argv.find((arg) => arg.startsWith("--user-id="));
   const delayArg = argv.find((arg) => arg.startsWith("--delay-ms="));
+  const userArticleIdsArg = argv.find((arg) =>
+    arg.startsWith("--user-article-ids=")
+  );
 
   return {
     userId:
@@ -275,13 +329,19 @@ function parseArgs(argv) {
     skipMetadata: argv.includes("--skip-metadata"),
     skipAi: argv.includes("--skip-ai"),
     delayMs: delayArg ? Number(delayArg.split("=")[1]) : DEFAULT_DELAY_MS,
+    userArticleIds: userArticleIdsArg
+      ? userArticleIdsArg
+          .split("=")[1]
+          .split(",")
+          .map((id) => Number(id.trim()))
+          .filter((id) => Number.isFinite(id))
+      : null,
   };
 }
 
 async function main() {
-  const { userId, dryRun, skipMetadata, skipAi, delayMs } = parseArgs(
-    process.argv.slice(2)
-  );
+  const { userId, dryRun, skipMetadata, skipAi, delayMs, userArticleIds } =
+    parseArgs(process.argv.slice(2));
 
   if (!userId) {
     console.error(
@@ -308,6 +368,7 @@ async function main() {
     skipMetadata,
     skipAi,
     delayMs,
+    userArticleIds,
   });
 
   console.log("\nResumen:");
